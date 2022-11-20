@@ -46,6 +46,8 @@ extern "C" {
 #define CFG_TUD_MIDI              0
 #define CFG_TUD_VENDOR            0
 
+#define CFG_TUD_HID_EP_BUFSIZE 16
+
 #define CFG_TUD_CDC_EP_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #define CFG_TUD_CDC_RX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #define CFG_TUD_CDC_TX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)

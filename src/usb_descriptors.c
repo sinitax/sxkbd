@@ -1,32 +1,32 @@
+#include "board.h"
+
+#include "class/hid/hid_device.h"
 #include "tusb.h"
 #include "tusb_types.h"
 
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 
-/* same VID/PID with difference interface can cause issues! */
+/* same VID/PID with different interface can cause issues! */
 
 #define _PID_MAP(itf, n) ((CFG_TUD_##itf) << (n))
 #define USB_PID (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) \
 	 | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4))
 
-#define USB_VID 0xC0FE
+#define USB_VID 0xC0FF
 #define USB_BCD 0x0200
 
 #define CONFIG_TOTAL_LEN \
-	(TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
-
-#define EPNUM_HID 0x01
+	(TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN)
 
 /* MCU-specific! */
 #define EPNUM_CDC_NOTIF   0x81
 #define EPNUM_CDC_OUT     0x02
 #define EPNUM_CDC_IN      0x82
-#define EPNUM_MSC_OUT     0x03
-#define EPNUM_MSC_IN      0x83
+#define EPNUM_HID         0x83
 
 enum {
 	ITF_NUM_CDC,
-	ITF_NUM_CTC_DATA,
+	ITF_NUM_CDC_DATA,
 	ITF_NUM_HID,
 	ITF_NUM_TOTAL
 };
@@ -36,9 +36,9 @@ tusb_desc_device_t const desc_device = {
 	.bDescriptorType    = TUSB_DESC_DEVICE,
 	.bcdUSB             = USB_BCD,
 
-	.bDeviceClass       = TUSB_CLASS_MISC,
-	.bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-	.bDeviceProtocol    = MISC_PROTOCOL_IAD,
+	.bDeviceClass       = 0x00,
+	.bDeviceSubClass    = 0x00,
+	.bDeviceProtocol    = 0x00,
 
 	.bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
@@ -54,13 +54,16 @@ tusb_desc_device_t const desc_device = {
 };
 
 uint8_t const desc_hid_report[] = {
-	TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
+	TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_ID_KEYBOARD)),
+	TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(REPORT_ID_MOUSE)),
+	TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(REPORT_ID_CONSUMER_CONTROL))
 };
 
 uint8_t const desc_fs_configuration[] = {
 	/* Config number, interface count, string index,
 	 * total length, attribute, power in mA */
-	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN,
+		TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
 	/* Interface number, string index, EP notification address and size,
 	 * EP data address (out, in) and size */
@@ -68,16 +71,17 @@ uint8_t const desc_fs_configuration[] = {
 		EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
 
 	/* Interface number, string index, protocol, report descriptor len,
-	 * EP In & Out address, size & polling interval */
-	TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 5, HID_ITF_PROTOCOL_NONE,
-		sizeof(desc_hid_report), EPNUM_HID, 0x80 | EPNUM_HID, 64, 10)
+	 * EP In address, size & polling interval */
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID, 5, HID_ITF_PROTOCOL_NONE,
+		sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5)
 };
 
 #if TUD_OPT_HIGH_SPEED
 uint8_t const desc_hs_configuration[] = {
 	/* Config number, interface count, string index,
 	 * total length, attribute, power in mA */
-	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN,
+		TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
 	/* Interface number, string index, EP notification address and size,
 	 * EP data address (out, in) and size */
@@ -85,9 +89,9 @@ uint8_t const desc_hs_configuration[] = {
 		EPNUM_CDC_OUT, EPNUM_CDC_IN, 512),
 
 	/* Interface number, string index, protocol, report descriptor len,
-	 * EP In & Out address, size & polling interval */
-	TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 5, HID_ITF_PROTOCOL_NONE,
-		sizeof(desc_hid_report), EPNUM_HID, 0x80 | EPNUM_HID, 512, 10)
+	 * EP In address, size & polling interval */
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID, 5, HID_ITF_PROTOCOL_NONE,
+		sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5)
 };
 
 uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
@@ -109,7 +113,7 @@ tusb_desc_device_qualifier_t const desc_device_qualifier =
 #endif
 
 char const *string_desc_arr[] = {
-	[0] = (const char[]) { 0x09, 0x04 }, /* supported language is English */
+	[0] = (const char[]) { 0x09, 0x04 }, /* Supported language is English */
 	[1] = "TinyUSB",                     /* Manufacturer */
 	[2] = "TinyUSB Device",              /* Product */
 	[3] = "123456",                      /* Serials, should use chip ID */

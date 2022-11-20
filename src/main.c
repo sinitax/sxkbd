@@ -1,5 +1,7 @@
 #include "board.h"
 #include "class/cdc/cdc_device.h"
+#include "class/hid/hid.h"
+#include "device/usbd.h"
 #include "neopix.h"
 #include "util.h"
 
@@ -24,7 +26,10 @@ void stub_stdio_write(const char *buf, int len);
 void stub_stdio_flush(void);
 int stub_stdio_read(char *buf, int len);
 
-void led_blinking_task(void);
+bool send_hid_report(int id, bool state);
+
+void hid_task(void);
+void blink_task(void);
 
 static struct stdio_driver usb_stdio = {
 	.out_chars = stub_stdio_write,
@@ -34,6 +39,8 @@ static struct stdio_driver usb_stdio = {
 };
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+
+static bool hit_state = false;
 
 struct neopix onboard_led;
 
@@ -51,7 +58,8 @@ main(void)
 
 	while (true) {
 		tud_task();
-		led_blinking_task();
+		blink_task();
+		hid_task();
 	}
 
 	return 0;
@@ -114,7 +122,6 @@ tud_cdc_rx_cb(uint8_t itf)
 	(void) itf;
 }
 
-/* Invoked on GET_REPORT */
 uint16_t
 tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
@@ -128,7 +135,6 @@ tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
 	return 0;
 }
 
-/* Invoked on SET_REPORT or receive on OUT with (Report ID = 0, Type = 0) */
 void
 tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
@@ -136,21 +142,136 @@ tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
 	(void) itf;
 	(void) report_id;
 	(void) report_type;
-
-	tud_hid_report(0, buffer, bufsize);
+	(void) buffer;
+	(void) bufsize;
 }
 
 void
-led_blinking_task(void)
+tud_hid_report_complete_cb(uint8_t instance,
+	uint8_t const *report, uint8_t len)
+{
+	uint8_t id;
+
+	(void) instance;
+	(void) report;
+	(void) len;
+
+	for (id = report[0] + 1; id < REPORT_ID_MAX; id++) {
+		if (send_hid_report(id, hit_state))
+			break;
+	}
+}
+
+bool
+send_keyboard_report(bool state)
+{
+	static bool cleared = true;
+	uint8_t keycode[6] = { 0 };
+
+	if (state) {
+		keycode[0] = HID_KEY_A;
+		tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+		cleared = false;
+		return true;
+	} else if (!cleared) {
+		tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+		cleared = true;
+		return true;
+	}
+
+	return false;
+}
+
+bool
+send_mouse_report(bool state)
+{
+	if (state) {
+		tud_hid_mouse_report(REPORT_ID_MOUSE, 0, 10, 10, 0, 0);
+		return true;
+	}
+
+	return false;
+}
+
+bool
+send_consumer_control_report(bool state)
+{
+	static bool cleared = true;
+	uint16_t report;
+
+	if (state) {
+		report = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
+		tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &report, 2);
+		cleared = false;
+		return true;
+	} else if (!cleared) {
+		report = 0;
+		tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &report, 2);
+		cleared = true;
+		return true;
+	}
+
+	return false;
+}
+
+bool
+send_hid_report(int id, bool state)
+{
+	switch (id) {
+	case REPORT_ID_KEYBOARD:
+		return send_keyboard_report(state);
+	case REPORT_ID_MOUSE:
+		return send_mouse_report(state);
+	case REPORT_ID_CONSUMER_CONTROL:
+		return send_consumer_control_report(state);
+	}
+
+	return false;
+}
+
+void
+send_hid_report_timed(void)
+{
+	const uint32_t period_ms = 1000;
+	static uint32_t start_ms = 0;
+
+	if (!tud_hid_ready()) return;
+
+	hit_state = (board_millis() - start_ms < period_ms);
+	if (hit_state) start_ms += period_ms;
+
+	send_hid_report(REPORT_ID_MIN, hit_state);
+}
+
+void
+hid_task(void)
+{
+	const uint32_t poll_ms = 10;
+	static uint32_t start_ms = 0;
+
+	if (board_millis() - start_ms < poll_ms)
+		return;
+	start_ms += poll_ms;
+
+	// if (tud_suspended()) {
+	// 	tud_remote_wakeup();
+	// 	return;
+	// }
+
+	send_hid_report_timed();
+}
+
+void
+blink_task(void)
 {
 	static uint32_t start_ms = 0;
 	static bool state = false;
 
 	if (board_millis() - start_ms < blink_interval_ms)
 		return;
+	start_ms += blink_interval_ms;
 
+	state ^= true;
 	neopix_put(&onboard_led, neopix_u32rgb(255 * state, 0, 255 * state));
 
-	start_ms += blink_interval_ms;
-	state ^= true;
 }
