@@ -16,7 +16,7 @@ lib/picosdk:
 .build:
 	mkdir $@
 
-upload:
+flash:
 	picotool load .build/sxkbd.uf2
 
 .PHONY: all clean cmake upload

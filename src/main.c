@@ -1,12 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "bsp/board.h"
 #include "tusb.h"
+#include "neopix.h"
 
 /* Blink pattern
- * - 250 ms	: device not mounted
+ * - 250 ms  : device not mounted
  * - 1000 ms : device mounted
  * - 2500 ms : device is suspended
  */
@@ -18,19 +20,20 @@ enum	{
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
+static struct neopix onboard_led;
+
 void led_blinking_task(void);
 
-/*------------- MAIN -------------*/
 int main(void)
 {
 	board_init();
 
-	// init device stack on configured roothub port
+	neopix_init(&onboard_led, pio0, 0, 25);
+
 	tud_init(BOARD_TUD_RHPORT);
 
-	while (1)
-	{
-		tud_task(); // tinyusb device task
+	while (1) {
+		tud_task();
 		led_blinking_task();
 	}
 
@@ -78,7 +81,6 @@ void tud_resume_cb(void)
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
-	// TODO not Implemented
 	(void) itf;
 	(void) report_id;
 	(void) report_type;
@@ -93,27 +95,24 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
-	// This example doesn't use multiple report and report ID
 	(void) itf;
 	(void) report_id;
 	(void) report_type;
 
-	// echo back anything we received from host
 	tud_hid_report(0, buffer, bufsize);
 }
 
-//--------------------------------------------------------------------+
-// BLINKING TASK
-//--------------------------------------------------------------------+
-void led_blinking_task(void)
+void
+led_blinking_task(void)
 {
 	static uint32_t start_ms = 0;
-	static bool led_state = false;
+	static bool state = false;
 
-	// Blink every interval ms
-	if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
+	if (board_millis() - start_ms < blink_interval_ms)
+		return;
+
+	neopix_put(&onboard_led, neopix_u32rgb(255 * state, 0, 0));
+
 	start_ms += blink_interval_ms;
-
-	board_led_write(led_state);
-	led_state = 1 - led_state; // toggle
+	state ^= true;
 }
