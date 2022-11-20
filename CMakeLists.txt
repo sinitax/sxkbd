@@ -26,6 +26,7 @@ target_include_directories(${PROJECT} PUBLIC
 target_link_libraries(${PROJECT} PRIVATE
 	pico_stdlib
 	pico_stdio
+	pico_bootsel_via_double_reset
 	hardware_pio
 	hardware_gpio
 	tinyusb_device

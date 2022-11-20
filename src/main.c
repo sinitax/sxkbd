@@ -25,8 +25,6 @@ void stub_stdio_flush(void);
 int stub_stdio_read(char *buf, int len);
 
 void led_blinking_task(void);
-void cdc_echo_task(void);
-void print_task(void);
 
 static struct stdio_driver usb_stdio = {
 	.out_chars = stub_stdio_write,
@@ -44,7 +42,6 @@ main(void)
 {
 	board_init();
 
-	(void) usb_stdio;
 	stdio_set_driver_enabled(&usb_stdio, true);
 	stdio_init_all();
 
@@ -52,16 +49,9 @@ main(void)
 
 	tud_init(BOARD_TUD_RHPORT);
 
-	ASSERT(1 == 0);
-
-	while (!tud_cdc_connected())
-		tud_task();
-
 	while (true) {
 		tud_task();
 		led_blinking_task();
-		//cdc_echo_task();
-		print_task();
 	}
 
 	return 0;
@@ -100,7 +90,7 @@ tud_umount_cb(void)
 void
 tud_suspend_cb(bool remote_wakeup_en)
 {
-	(void) remote_wakeup_en; /* host allows remote wakeup */
+	(void) remote_wakeup_en;
 	blink_interval_ms = BLINK_SUSPENDED;
 }
 
@@ -115,7 +105,7 @@ tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
 	(void) itf;
 	(void) rts;
-	(void) dtr; /* TODO: show terminal connection with LED? */
+	(void) dtr;
 }
 
 void
@@ -159,36 +149,8 @@ led_blinking_task(void)
 	if (board_millis() - start_ms < blink_interval_ms)
 		return;
 
-	neopix_put(&onboard_led, neopix_u32rgb(255 * state, 0, 0));
+	neopix_put(&onboard_led, neopix_u32rgb(255 * state, 0, 255 * state));
 
 	start_ms += blink_interval_ms;
 	state ^= true;
-}
-
-void
-cdc_echo_task(void)
-{
-	char buf[64];
-	uint32_t count;
-
-	if (tud_cdc_available()) {
-		count = tud_cdc_read(buf, sizeof(buf));
-
-		tud_cdc_write(buf, count);
-		tud_cdc_write_flush();
-	}
-}
-
-void
-print_task(void)
-{
-	static uint32_t start_ms = 0;
-
-	if (!tud_cdc_available())
-		return;
-
-	if (board_millis() - start_ms < 1000)
-		return;
-
-	start_ms += 1000;
 }
