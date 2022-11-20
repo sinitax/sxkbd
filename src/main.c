@@ -1,84 +1,132 @@
+#include "board.h"
+#include "class/cdc/cdc_device.h"
+#include "neopix.h"
+#include "util.h"
+
+#include "pico/stdio/driver.h"
+#include "pico/stdlib.h"
+#include "bsp/board.h"
+#include "pico/time.h"
+#include "tusb.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 
-#include "bsp/board.h"
-#include "tusb.h"
-#include "neopix.h"
-
-/* Blink pattern
- * - 250 ms  : device not mounted
- * - 1000 ms : device mounted
- * - 2500 ms : device is suspended
- */
-enum	{
+enum {
 	BLINK_NOT_MOUNTED = 250,
 	BLINK_MOUNTED = 1000,
 	BLINK_SUSPENDED = 2500,
 };
 
-static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
-
-static struct neopix onboard_led;
+void stub_stdio_write(const char *buf, int len);
+void stub_stdio_flush(void);
+int stub_stdio_read(char *buf, int len);
 
 void led_blinking_task(void);
+void cdc_echo_task(void);
+void print_task(void);
 
-int main(void)
+static struct stdio_driver usb_stdio = {
+	.out_chars = stub_stdio_write,
+	.out_flush = stub_stdio_flush,
+	.in_chars = stub_stdio_read,
+	.next = NULL
+};
+
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+
+struct neopix onboard_led;
+
+int
+main(void)
 {
 	board_init();
+
+	(void) usb_stdio;
+	stdio_set_driver_enabled(&usb_stdio, true);
+	stdio_init_all();
 
 	neopix_init(&onboard_led, pio0, 0, 25);
 
 	tud_init(BOARD_TUD_RHPORT);
 
-	while (1) {
+	ASSERT(1 == 0);
+
+	while (!tud_cdc_connected())
+		tud_task();
+
+	while (true) {
 		tud_task();
 		led_blinking_task();
+		//cdc_echo_task();
+		print_task();
 	}
 
 	return 0;
 }
 
-//--------------------------------------------------------------------+
-// Device callbacks
-//--------------------------------------------------------------------+
+void
+stub_stdio_write(const char *buf, int len)
+{
+	tud_cdc_write(buf, (uint32_t) len);
+}
 
-// Invoked when device is mounted
-void tud_mount_cb(void)
+void
+stub_stdio_flush(void)
+{
+	tud_cdc_write_flush();
+}
+
+int
+stub_stdio_read(char *buf, int len)
+{
+	return (int) tud_cdc_read(buf, (uint32_t) len);
+}
+
+void
+tud_mount_cb(void)
 {
 	blink_interval_ms = BLINK_MOUNTED;
 }
 
-// Invoked when device is unmounted
-void tud_umount_cb(void)
+void
+tud_umount_cb(void)
 {
 	blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
-// Invoked when usb bus is suspended
-// remote_wakeup_en : if host allow us	to perform remote wakeup
-// Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
+void
+tud_suspend_cb(bool remote_wakeup_en)
 {
-	(void) remote_wakeup_en;
+	(void) remote_wakeup_en; /* host allows remote wakeup */
 	blink_interval_ms = BLINK_SUSPENDED;
 }
 
-// Invoked when usb bus is resumed
-void tud_resume_cb(void)
+void
+tud_resume_cb(void)
 {
 	blink_interval_ms = BLINK_MOUNTED;
 }
 
-//--------------------------------------------------------------------+
-// USB HID
-//--------------------------------------------------------------------+
+void
+tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+	(void) itf;
+	(void) rts;
+	(void) dtr; /* TODO: show terminal connection with LED? */
+}
 
-// Invoked when received GET_REPORT control request
-// Application must fill buffer report's content and return its length.
-// Return zero will cause the stack to STALL request
-uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
+void
+tud_cdc_rx_cb(uint8_t itf)
+{
+	(void) itf;
+}
+
+/* Invoked on GET_REPORT */
+uint16_t
+tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
 	(void) itf;
@@ -90,9 +138,9 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
 	return 0;
 }
 
-// Invoked when received SET_REPORT control request or
-// received data on OUT endpoint ( Report ID = 0, Type = 0 )
-void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
+/* Invoked on SET_REPORT or receive on OUT with (Report ID = 0, Type = 0) */
+void
+tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
 	(void) itf;
@@ -115,4 +163,32 @@ led_blinking_task(void)
 
 	start_ms += blink_interval_ms;
 	state ^= true;
+}
+
+void
+cdc_echo_task(void)
+{
+	char buf[64];
+	uint32_t count;
+
+	if (tud_cdc_available()) {
+		count = tud_cdc_read(buf, sizeof(buf));
+
+		tud_cdc_write(buf, count);
+		tud_cdc_write_flush();
+	}
+}
+
+void
+print_task(void)
+{
+	static uint32_t start_ms = 0;
+
+	if (!tud_cdc_available())
+		return;
+
+	if (board_millis() - start_ms < 1000)
+		return;
+
+	start_ms += 1000;
 }

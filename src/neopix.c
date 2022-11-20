@@ -14,6 +14,7 @@ neopix_init(struct neopix *pix, PIO pio, uint sm, uint pin)
 	offset = pio_add_program(pix->pio, &ws2812_program);
 	ws2812_program_init(pix->pio, pix->sm, offset,
 		pix->pin, 800000, false);
+	pix->init = true;
 }
 
 void

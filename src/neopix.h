@@ -1,10 +1,15 @@
+#pragma once
+
 #include "hardware/pio.h"
 #include "hardware/gpio.h"
+
+#include <stdbool.h>
 
 struct neopix {
 	PIO pio;
 	uint sm;
 	uint pin;
+	bool init;
 };
 
 void neopix_init(struct neopix *pix, PIO pio, uint sm, uint pin);
