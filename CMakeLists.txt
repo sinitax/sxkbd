@@ -14,8 +14,11 @@ target_sources(${PROJECT} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/hid.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/split.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/neopix.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/matrix.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/keymap.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/usb_stdio.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
 )
 
@@ -24,6 +27,7 @@ target_include_directories(${PROJECT} PUBLIC
 	${PICO_SDK_PATH}/src/rp2_common/hardware_gpio/include
 	${PICO_SDK_PATH}/src/rp2_common/hardware_pio/include
 	${PICO_SDK_PATH}/src/rp2_common/hardware_timer/include
+	${PICO_SDK_PATH}/src/rp2_common/hardware_uart/include
 )
 
 target_link_libraries(${PROJECT} PRIVATE
@@ -38,6 +42,11 @@ target_link_libraries(${PROJECT} PRIVATE
 target_compile_options(pico_stdio INTERFACE
 	-Wno-shadow # issue in picosdk/src/rp2_common/hardware_flash/flash.c
 	-Wno-unused-parameter
+)
+
+target_compile_options(${PROJECT} PRIVATE
+	"-DSPLIT_SIDE=${SPLIT_LEFT}"
+	"-DSPLIT_ROLE=${SPLIT_ROLE}"
 )
 
 family_configure_target(${PROJECT})

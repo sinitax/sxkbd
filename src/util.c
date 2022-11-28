@@ -15,7 +15,7 @@ __attribute__((format(printf, 1, 0)))
 panic_task(const char *fmtstr, va_list ap)
 {
 	va_list cpy;
-	char c;	
+	char c;
 
 	if (!tud_cdc_available())
 		return;

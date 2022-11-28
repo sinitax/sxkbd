@@ -1,4 +1,7 @@
 #include "board.h"
+#include "usb_stdio.h"
+#include "matrix.h"
+#include "split.h"
 #include "hid.h"
 #include "keymap.h"
 #include "neopix.h"
@@ -8,7 +11,6 @@
 #include "class/cdc/cdc_device.h"
 #include "class/hid/hid.h"
 #include "device/usbd.h"
-#include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
 #include "bsp/board.h"
 #include "pico/time.h"
@@ -25,20 +27,9 @@ enum {
 	BLINK_SUSPENDED = 2500,
 };
 
-void stub_stdio_write(const char *buf, int len);
-void stub_stdio_flush(void);
-int stub_stdio_read(char *buf, int len);
-
 bool send_hid_report(int id, bool state);
 
 void blink_task(void);
-
-static struct stdio_driver usb_stdio = {
-	.out_chars = stub_stdio_write,
-	.out_flush = stub_stdio_flush,
-	.in_chars = stub_stdio_read,
-	.next = NULL
-};
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
@@ -52,41 +43,21 @@ int
 main(void)
 {
 	board_init();
-
-	stdio_set_driver_enabled(&usb_stdio, true);
-	stdio_init_all();
-
-	neopix_init(&onboard_led, pio0, 0, 25);
 	tud_init(BOARD_TUD_RHPORT);
-	hid_init();
-
-	DEBUG("Init done.");
+	usb_stdio_init();
+	neopix_init(&onboard_led, pio0, 0, 25);
+	matrix_init();
+	split_init();
+	//hid_init();
 
 	while (true) {
 		tud_task();
 		blink_task();
-		hid_task();
+		split_task();
+		//hid_task();
 	}
 
 	return 0;
-}
-
-void
-stub_stdio_write(const char *buf, int len)
-{
-	tud_cdc_write(buf, (uint32_t) len);
-}
-
-void
-stub_stdio_flush(void)
-{
-	tud_cdc_write_flush();
-}
-
-int
-stub_stdio_read(char *buf, int len)
-{
-	return (int) tud_cdc_read(buf, (uint32_t) len);
 }
 
 void
@@ -104,7 +75,6 @@ tud_umount_cb(void)
 void
 tud_suspend_cb(bool remote_wakeup_en)
 {
-	(void) remote_wakeup_en;
 	blink_interval_ms = BLINK_SUSPENDED;
 }
 
@@ -117,27 +87,17 @@ tud_resume_cb(void)
 void
 tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
-	(void) itf;
-	(void) rts;
-	(void) dtr;
 }
 
 void
 tud_cdc_rx_cb(uint8_t itf)
 {
-	(void) itf;
 }
 
 uint16_t
 tud_hid_get_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
-	(void) itf;
-	(void) report_id;
-	(void) report_type;
-	(void) buffer;
-	(void) reqlen;
-
 	return 0;
 }
 
@@ -145,11 +105,6 @@ void
 tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
-	(void) itf;
-	(void) report_id;
-	(void) report_type;
-	(void) buffer;
-	(void) bufsize;
 }
 
 void
@@ -157,10 +112,6 @@ tud_hid_report_complete_cb(uint8_t instance,
 	uint8_t const *report, uint8_t len)
 {
 	uint8_t id;
-
-	(void) instance;
-	(void) report;
-	(void) len;
 
 	for (id = report[0] + 1; id < REPORT_ID_MAX; id++) {
 		if (send_hid_report(id, hit_state))
