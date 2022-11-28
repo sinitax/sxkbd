@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
+#define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
+
 #define ERR(...) stdio_log(LOG_ERR, __VA_ARGS__)
 #define WARN(...) stdio_log(LOG_WARN, __VA_ARGS__)
 #define INFO(...) stdio_log(LOG_INFO, __VA_ARGS__)

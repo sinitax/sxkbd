@@ -13,3 +13,6 @@ enum {
 };
 
 extern struct neopix onboard_led;
+
+extern const uint32_t **keymap_layers;
+

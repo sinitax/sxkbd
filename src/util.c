@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 
-int loglevel = LOG_WARN;
+int loglevel = LOG_DEBUG;
 
 static void
 __attribute__((format(printf, 1, 0)))

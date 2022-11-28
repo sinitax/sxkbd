@@ -1,10 +1,13 @@
 #include "board.h"
-#include "class/cdc/cdc_device.h"
-#include "class/hid/hid.h"
-#include "device/usbd.h"
+#include "hid.h"
+#include "keymap.h"
 #include "neopix.h"
 #include "util.h"
 
+#include "hardware/gpio.h"
+#include "class/cdc/cdc_device.h"
+#include "class/hid/hid.h"
+#include "device/usbd.h"
 #include "pico/stdio/driver.h"
 #include "pico/stdlib.h"
 #include "bsp/board.h"
@@ -28,7 +31,6 @@ int stub_stdio_read(char *buf, int len);
 
 bool send_hid_report(int id, bool state);
 
-void hid_task(void);
 void blink_task(void);
 
 static struct stdio_driver usb_stdio = {
@@ -42,6 +44,8 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 static bool hit_state = false;
 
+const uint32_t **keymap_layers = keymap_layers_de;
+
 struct neopix onboard_led;
 
 int
@@ -53,8 +57,10 @@ main(void)
 	stdio_init_all();
 
 	neopix_init(&onboard_led, pio0, 0, 25);
-
 	tud_init(BOARD_TUD_RHPORT);
+	hid_init();
+
+	DEBUG("Init done.");
 
 	while (true) {
 		tud_task();
@@ -244,24 +250,6 @@ send_hid_report_timed(void)
 }
 
 void
-hid_task(void)
-{
-	const uint32_t poll_ms = 10;
-	static uint32_t start_ms = 0;
-
-	if (board_millis() - start_ms < poll_ms)
-		return;
-	start_ms += poll_ms;
-
-	// if (tud_suspended()) {
-	// 	tud_remote_wakeup();
-	// 	return;
-	// }
-
-	send_hid_report_timed();
-}
-
-void
 blink_task(void)
 {
 	static uint32_t start_ms = 0;
@@ -271,7 +259,9 @@ blink_task(void)
 		return;
 	start_ms += blink_interval_ms;
 
+	DEBUG("blink");
+
 	state ^= true;
 	neopix_put(&onboard_led, neopix_u32rgb(255 * state, 0, 255 * state));
-
 }
+
