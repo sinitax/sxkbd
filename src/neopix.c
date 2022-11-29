@@ -1,15 +1,19 @@
-#include "hardware/pio.h"
-
 #include "neopix.h"
 #include "ws2812.pio.h"
+#include "util.h"
+
+#include "hardware/pio.h"
 
 void
-neopix_init(struct neopix *pix, PIO pio, uint sm, uint pin)
+neopix_init(struct neopix *pix, uint pin)
 {
 	uint offset;
+	int sm;
 
-	pix->sm = sm;
-	pix->pio = pio;
+	pix->pio = pio0;
+	sm = pio_claim_unused_sm(pix->pio, true);
+	ASSERT(sm >= 0);
+	pix->sm = (uint) sm;
 	pix->pin = pin;
 	offset = pio_add_program(pix->pio, &ws2812_program);
 	ws2812_program_init(pix->pio, pix->sm, offset,

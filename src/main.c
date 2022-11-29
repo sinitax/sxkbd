@@ -45,10 +45,12 @@ main(void)
 	board_init();
 	tud_init(BOARD_TUD_RHPORT);
 	usb_stdio_init();
-	neopix_init(&onboard_led, pio0, 0, 25);
+	neopix_init(&onboard_led, ONBOARD_LED_PIN);
 	matrix_init();
 	split_init();
 	//hid_init();
+
+	ASSERT(1 == 0);
 
 	while (true) {
 		tud_task();

@@ -1,4 +1,5 @@
 #include "split.h"
+#include "class/cdc/cdc_device.h"
 #include "util.h"
 #include "matrix.h"
 
@@ -16,8 +17,10 @@
 
 #define UART_TIMEOUT 20
 #define UART_BAUD 115200
+
+/* same pin since half-duplex */
 #define UART_TX_PIN 0
-#define UART_RX_PIN 1
+#define UART_RX_PIN 0
 
 enum {
 	CMD_SCAN_MATRIX_REQ = 0x80,
@@ -30,12 +33,18 @@ enum { LEFT, RIGHT };
 
 static void uart_tx_init(void);
 static void uart_rx_init(void);
+
 static void uart_enter_rx(void);
 static void uart_leave_rx(void);
+
 static int uart_sync_rx(void);
 static int uart_sync_tx(void);
-static bool uart_recv(uint8_t *data, uint len);
-static bool uart_send(const uint8_t *data, uint len);
+
+static uint8_t uart_in_byte(void);
+static void uart_out_byte(uint8_t c);
+
+static uint uart_recv(uint8_t *data, uint len);
+static uint uart_send(const uint8_t *data, uint len);
 
 static void irq_rx_cmd(uint8_t cmd);
 static void irq_rx(void);
@@ -105,7 +114,7 @@ uart_tx_init(void)
 	sm_config_set_sideset_pins(&config, UART_TX_PIN);
 	sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX);
 	sm_config_set_clkdiv(&config,
-		(float) clock_get_hz(clk_sys) / (8.f * UART_BAUD));
+		(float) clock_get_hz(clk_sys) / (8 * UART_BAUD));
 
 	pio_sm_init(pio0, uart_tx_sm, offset, &config);
 	pio_sm_set_enabled(pio0, uart_tx_sm, true);
@@ -132,7 +141,7 @@ uart_rx_init(void)
 	sm_config_set_in_shift(&config, true, false, 32);
 	sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_RX);
 	sm_config_set_clkdiv(&config,
-		(float) clock_get_hz(clk_sys) / (8.f * UART_BAUD));
+		(float) clock_get_hz(clk_sys) / (8 * UART_BAUD));
 
 	pio_sm_init(pio0, uart_rx_sm, offset, &config);
 	pio_sm_set_enabled(pio0, uart_rx_sm, true);
@@ -201,7 +210,19 @@ uart_sync_tx(void)
 	return full;
 }
 
-bool
+uint8_t
+uart_in_byte(void)
+{
+	return *(uint8_t*)((uintptr_t)&pio0->rxf[uart_rx_sm] + 3);
+}
+
+void
+uart_out_byte(uint8_t c)
+{
+	pio_sm_put(pio0, uart_tx_sm, c);
+}
+
+uint
 uart_recv(uint8_t *data, uint len)
 {
 	uint recv;
@@ -211,14 +232,14 @@ uart_recv(uint8_t *data, uint len)
 		if (pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm)) {
 			if (uart_sync_rx()) break;
 		}
-		*data++ = *(uint8_t*)((uintptr_t)&pio0->rxf[uart_rx_sm] + 3);
+		*data++ = uart_in_byte();
 		recv++;
 	}
 
-	return recv == len;
+	return recv;
 }
 
-bool
+uint
 uart_send(const uint8_t *data, uint len)
 {
 	uint sent;
@@ -229,20 +250,18 @@ uart_send(const uint8_t *data, uint len)
 		if (pio_sm_is_tx_fifo_full(pio0, uart_tx_sm)) {
 			if (uart_sync_tx()) break;
 		}
-		pio_sm_put(pio0, uart_tx_sm, *data++);
+		uart_out_byte(*data++);
 		sent++;
 	}
 	uart_enter_rx();
 
-	return sent == len;
+	return sent;
 }
 
 void
 irq_rx_cmd(uint8_t cmd)
 {
-	char buf[64];
-	uint8_t c;
-	uint len;
+	uint8_t buf[64];
 
 	switch (cmd) {
 	case CMD_SCAN_MATRIX_REQ:
@@ -258,20 +277,9 @@ irq_rx_cmd(uint8_t cmd)
 	case CMD_STDIO_PUTS:
 		if (SPLIT_ROLE != MASTER)
 			break;
-		len = 0;
-		while (uart_recv(&c, 1) && c) {
-			if (len == ARRLEN(buf)) {
-				tud_cdc_write(buf, len);
-				buf[0] = c;
-				len = 1;
-			} else {
-				buf[len++] = c;
-			}
-		}
-		if (len) {
-			tud_cdc_write(buf, len);
-			tud_cdc_write_flush();
-		}
+		memset(buf, 0, sizeof(buf));
+		uart_recv(buf, sizeof(buf)-1);
+		printf("SLAVE: %s\n", buf);
 		return;
 	}
 
@@ -283,8 +291,10 @@ irq_rx(void)
 {
 	uint8_t cmd;
 
-	while (uart_is_readable(uart0)) {
-		uart_recv(&cmd, 1);
+	DEBUG("UART IRQ\n");
+	while (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm)) {
+		cmd = uart_in_byte();
+		DEBUG("UART RX CMD %i\n", cmd);
 		irq_rx_cmd(cmd);
 	}
 }
@@ -296,17 +306,16 @@ split_init(void)
 	uart_rx_init();
 
 	pio_set_irq0_source_enabled(pio0,
-		pis_sm0_rx_fifo_not_empty + uart_rx_sm, true);
+		pis_sm0_rx_fifo_not_empty + uart_rx_sm, false);
 	pio_set_irq0_source_enabled(pio0,
-		pis_sm0_tx_fifo_not_full + uart_tx_sm, true);
-	pio_set_irq0_source_enabled(pio0, pis_interrupt0, true);
+		pis_sm0_tx_fifo_not_full + uart_tx_sm, false);
+	pio_set_irq0_source_enabled(pio0, pis_interrupt0, false);
 
 	irq_set_priority(PIO0_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
 	irq_set_exclusive_handler(PIO0_IRQ_0, irq_rx);
 	irq_set_enabled(PIO0_IRQ_0, true);
 
 	uart_enter_rx();
-
 }
 
 void
@@ -319,13 +328,13 @@ split_task(void)
 		if (scan_pending) {
 			scan_matrix();
 			cmd = CMD_SCAN_MATRIX_RESP;
-			uart_send(&cmd, 1);
+			ASSERT(uart_send(&cmd, 1));
 			scan_pending = false;
 		}
 	} else if (SPLIT_ROLE == MASTER) {
 		scan_pending = true;
 		cmd = CMD_SCAN_MATRIX_REQ;
-		uart_send(&cmd, 1);
+		ASSERT(uart_send(&cmd, 1));
 		scan_matrix(); /* scan our side in parallel */
 		start_ms = board_millis();
 		while (scan_pending && board_millis() < start_ms + 50)
