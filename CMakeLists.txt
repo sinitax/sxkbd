@@ -28,6 +28,7 @@ target_include_directories(${PROJECT} PUBLIC
 	${PICO_SDK_PATH}/src/rp2_common/hardware_pio/include
 	${PICO_SDK_PATH}/src/rp2_common/hardware_timer/include
 	${PICO_SDK_PATH}/src/rp2_common/hardware_uart/include
+	${PICO_SDK_PATH}/src/rp2_common/hardware_clocks/include
 )
 
 target_link_libraries(${PROJECT} PRIVATE
