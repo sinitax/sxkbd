@@ -1,0 +1,31 @@
+diff --git a/hw/bsp/rp2040/family.c b/hw/bsp/rp2040/family.c
+index 90e2192c0..6a2735eaf 100644
+--- a/hw/bsp/rp2040/family.c
++++ b/hw/bsp/rp2040/family.c
+@@ -118,7 +118,7 @@ void stdio_rtt_init(void)
+ 
+ #endif
+ 
+-#ifdef UART_DEV
++#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+ static uart_inst_t *uart_inst;
+ #endif
+ 
+@@ -188,7 +188,7 @@ uint32_t board_button_read(void)
+ 
+ int board_uart_read(uint8_t* buf, int len)
+ {
+-#ifdef UART_DEV
++#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+   for(int i=0;i<len;i++) {
+     buf[i] = uart_getc(uart_inst);
+   }
+@@ -201,7 +201,7 @@ int board_uart_read(uint8_t* buf, int len)
+ 
+ int board_uart_write(void const * buf, int len)
+ {
+-#ifdef UART_DEV
++#if defined(UART_DEV) && defined(LIB_PICO_STDIO_UART)
+   char const* bufch = (char const*) buf;
+   for(int i=0;i<len;i++) {
+     uart_putc(uart_inst, bufch[i]);

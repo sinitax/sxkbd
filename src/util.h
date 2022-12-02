@@ -1,6 +1,9 @@
 #pragma once
 
+#include "ws2812.h"
+
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdarg.h>
 
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
@@ -10,11 +13,16 @@
 #define INFO(...) stdio_log(LOG_INFO, "INFO : " __VA_ARGS__)
 #define DEBUG(...) stdio_log(LOG_DEBUG, "DEBUG: " __VA_ARGS__)
 
-#define PANIC(...) blink_panic(__VA_ARGS__);
+#define PANIC(...) blink_panic(200, WS2812_U32RGB(255, 0, 0), __VA_ARGS__);
 #define ASSERT(cond) do { \
-		if (!(cond)) blink_panic("Assertion failed: (%s) in %s:%i", \
+		if (!(cond)) PANIC("Assertion failed: (%s) in %s:%i", \
 			#cond, __FILE__, __LINE__); \
 	} while (0)
+
+#define CLAIM_UNUSED_SM(pio) ({ \
+	int tmp = pio_claim_unused_sm(pio, false); \
+	ASSERT(tmp >= 0); \
+	(uint) tmp; })
 
 enum {
 	LOG_NONE,
@@ -26,6 +34,6 @@ enum {
 
 void stdio_log(int loglevel, const char *fmtstr, ...);
 
-void blink_panic(const char *fmtstr, ...);
+void blink_panic(uint32_t blink_ms, uint32_t rgb, const char *fmtstr, ...);
 
 extern int loglevel;

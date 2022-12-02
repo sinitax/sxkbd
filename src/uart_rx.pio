@@ -1,0 +1,22 @@
+.program uart_rx
+
+.wrap_target
+start:
+    wait    0 pin, 0                    [6]     ; wait for START bit
+
+    set     x, 7                        [4]     ; read 8 DATA bits and offset
+                                                ; clock for better readings
+bitloop:
+    in      pins, 1
+    jmp     x--, bitloop                [6]
+
+    jmp     pin, outb                           ; got STOP bit, output byte
+
+error:
+    irq     wait 0                              ; no STOP bit,
+    wait    1 pin, 0                            ; set err IRQ and await reset
+    jmp start
+
+outb:
+    push    block
+.wrap

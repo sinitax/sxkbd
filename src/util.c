@@ -1,7 +1,9 @@
 #include "util.h"
 #include "board.h"
-#include "neopix.h"
+#include "led.h"
+#include "ws2812.h"
 
+#include "pico/stdio.h"
 #include "tusb.h"
 #include "bsp/board.h"
 #include "tusb_config.h"
@@ -28,25 +30,9 @@ panic_task(const char *fmtstr, va_list ap, uint32_t sleep_ms)
 	va_copy(cpy, ap);
 	vprintf(fmtstr, cpy);
 	printf("\n\r");
+	stdio_flush();
 
 	start_ms += sleep_ms;
-}
-
-static void
-blink_task(struct neopix *pix, uint32_t blink_ms)
-{
-	static uint32_t start_ms = 0;
-	static bool led_state = false;
-
-	if (!start_ms) start_ms = board_millis();
-
-	if (board_millis() < start_ms + blink_ms)
-		return;
-
-	neopix_put(pix, neopix_u32rgb(255 * led_state, 0, 0));
-	led_state ^= true;
-
-	start_ms += blink_ms;
 }
 
 void
@@ -65,21 +51,25 @@ stdio_log(int level, const char *fmtstr, ...)
 	vprintf(fmtstr, ap);
 	va_end(ap);
 	printf("\n\r");
+	stdio_flush();
 }
 
 void
-__attribute__((format(printf, 1, 2)))
-blink_panic(const char *fmtstr, ...)
+__attribute__((format(printf, 3, 4)))
+blink_panic(uint32_t blink_ms, uint32_t rgb, const char *fmtstr, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmtstr);
 
+	led_blink_ms = blink_ms;
+	led_rgb = rgb;
+	led_mode = LED_BLINK;
+
 	while (1) {
 		tud_task();
 		panic_task(fmtstr, ap, 1000);
-		if (onboard_led.init)
-			blink_task(&onboard_led, 200);
+		led_task();
 	}
 
 	va_end(ap);

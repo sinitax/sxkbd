@@ -10,12 +10,17 @@ family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
 add_executable(${PROJECT})
 
+pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_SOURCE_DIR}/src/ws2812.pio)
+pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_SOURCE_DIR}/src/uart_tx.pio)
+pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_SOURCE_DIR}/src/uart_rx.pio)
+
 target_sources(${PROJECT} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/hid.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/split.c
-	${CMAKE_CURRENT_SOURCE_DIR}/src/neopix.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/ws2812.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/matrix.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/keymap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/usb_stdio.c
@@ -53,3 +58,6 @@ target_compile_options(${PROJECT} PRIVATE
 family_configure_target(${PROJECT})
 family_add_default_example_warnings(${PROJECT})
 suppress_tinyusb_warnings()
+
+#pico_enable_stdio_usb(${PROJECT} 1)
+pico_enable_stdio_uart(${PROJECT} 0)

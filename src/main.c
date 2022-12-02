@@ -2,9 +2,10 @@
 #include "usb_stdio.h"
 #include "matrix.h"
 #include "split.h"
+#include "led.h"
 #include "hid.h"
 #include "keymap.h"
-#include "neopix.h"
+#include "ws2812.h"
 #include "util.h"
 
 #include "hardware/gpio.h"
@@ -19,25 +20,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
-
-enum {
-	BLINK_NOT_MOUNTED = 250,
-	BLINK_MOUNTED = 1000,
-	BLINK_SUSPENDED = 2500,
-};
 
 bool send_hid_report(int id, bool state);
 
-void blink_task(void);
-
-static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
-
 static bool hit_state = false;
-
 const uint32_t **keymap_layers = keymap_layers_de;
-
-struct neopix onboard_led;
 
 int
 main(void)
@@ -45,16 +32,14 @@ main(void)
 	board_init();
 	tud_init(BOARD_TUD_RHPORT);
 	usb_stdio_init();
-	neopix_init(&onboard_led, ONBOARD_LED_PIN);
+	led_init();
 	matrix_init();
 	split_init();
 	//hid_init();
 
-	ASSERT(1 == 0);
-
 	while (true) {
 		tud_task();
-		blink_task();
+		led_task();
 		split_task();
 		//hid_task();
 	}
@@ -65,25 +50,34 @@ main(void)
 void
 tud_mount_cb(void)
 {
-	blink_interval_ms = BLINK_MOUNTED;
+	led_rgb = WS2812_U32RGB(100, 0, 100);
+	led_mode = LED_ON;
+	led_reset = true;
 }
 
 void
 tud_umount_cb(void)
 {
-	blink_interval_ms = BLINK_NOT_MOUNTED;
+	led_blink_ms = 500;
+	led_rgb = WS2812_U32RGB(100, 100, 100);
+	led_mode = LED_BLINK;
+	led_reset = true;
 }
 
 void
 tud_suspend_cb(bool remote_wakeup_en)
 {
-	blink_interval_ms = BLINK_SUSPENDED;
+	led_rgb = WS2812_U32RGB(100, 100, 100);
+	led_mode = LED_ON;
+	led_reset = true;
 }
 
 void
 tud_resume_cb(void)
 {
-	blink_interval_ms = BLINK_MOUNTED;
+	led_rgb = WS2812_U32RGB(100, 0, 100);
+	led_mode = LED_ON;
+	led_reset = true;
 }
 
 void
@@ -94,6 +88,7 @@ tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 void
 tud_cdc_rx_cb(uint8_t itf)
 {
+	printf("ALIVE\n\r");
 }
 
 uint16_t
@@ -201,20 +196,3 @@ send_hid_report_timed(void)
 
 	send_hid_report(REPORT_ID_MIN, hit_state);
 }
-
-void
-blink_task(void)
-{
-	static uint32_t start_ms = 0;
-	static bool state = false;
-
-	if (board_millis() - start_ms < blink_interval_ms)
-		return;
-	start_ms += blink_interval_ms;
-
-	DEBUG("blink");
-
-	state ^= true;
-	neopix_put(&onboard_led, neopix_u32rgb(255 * state, 0, 255 * state));
-}
-
