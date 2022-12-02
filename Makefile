@@ -8,12 +8,12 @@ clean:
 
 left: | $(PICO_SDK_PATH) .build/left
 	cmake -B .build/left -DFAMILY=$(FAMILY) -DPICO_SDK_PATH=$(PICO_SDK_PATH) \
-		-DSPLIT_SIDE=LEFT -DSPLIT_ROLE=MASTER
+		-DSPLIT_SIDE=LEFT -DSPLIT_ROLE=SLAVE
 	make -C .build/left
 
 right: | $(PICO_SDK_PATH) .build/right
 	cmake -B .build/right -DFAMILY=$(FAMILY) -DPICO_SDK_PATH=$(PICO_SDK_PATH) \
-		-DSPLIT_SIDE=RIGHT -DSPLIT_ROLE=SLAVE
+		-DSPLIT_SIDE=RIGHT -DSPLIT_ROLE=MASTER
 	make -C .build/right
 
 lib/picosdk:

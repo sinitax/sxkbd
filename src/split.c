@@ -24,11 +24,11 @@
 #include <stdint.h>
 
 #define UART_TIMEOUT 20
-#define UART_BAUD 115200
+#define UART_BAUD 9600
 #define UART_PIN 1
 
 enum {
-	CMD_SCAN_MATRIX_REQ = 0x0F,
+	CMD_SCAN_MATRIX_REQ = 0xA0,
 	CMD_SCAN_MATRIX_RESP,
 	CMD_STDIO_PUTS
 };
@@ -43,8 +43,8 @@ static void uart_full_init(void);
 static void uart_leave_rx(void);
 static void uart_enter_rx(void);
 
-static bool uart_await_rx(void);
-static bool uart_await_tx(void);
+static bool uart_await_rx(uint32_t timeout_ms);
+static bool uart_await_tx(uint32_t timeout_ms);
 
 static uint8_t uart_rx_byte(void);
 static void uart_tx_byte(uint8_t c);
@@ -52,7 +52,7 @@ static void uart_tx_byte(uint8_t c);
 static uint uart_recv(uint8_t *data, uint len);
 static uint uart_send(const uint8_t *data, uint len);
 
-static void irq_rx_cmd(uint8_t cmd);
+static void handle_cmd(uint8_t cmd);
 static void irq_rx(void);
 
 static uint uart_tx_sm;
@@ -107,7 +107,7 @@ void
 uart_full_init(void)
 {
 	pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 0U, 1U << UART_PIN);
-	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
+	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, false);
 
 	pio_gpio_init(pio0, UART_PIN);
 	gpio_pull_up(UART_PIN);
@@ -115,6 +115,8 @@ uart_full_init(void)
 	/* 1 => set INPUT and pull line HIGH from pullup
 	 * 0 => set OUTPUT and pull line LOW from signal */
 	gpio_set_oeover(UART_PIN, GPIO_OVERRIDE_INVERT);
+
+	gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_12MA);
 
 	uart_rx_init();
 	uart_tx_init();
@@ -141,11 +143,14 @@ uart_leave_rx(void)
 	pio_sm_set_enabled(pio0, uart_rx_sm, false);
 
 	/* because of OE override pindir true = INPUT (!) */
-	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
+	//pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
 
 	/* drive LOW with high drive-current for steep falling edges */
-	pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 0U, 1 << UART_PIN);
-	gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_12MA);
+	//pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 0U, 1 << UART_PIN);
+	//gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_12MA);
+
+	/* input */
+	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
 
 	pio_sm_restart(pio0, uart_tx_sm);
 	pio_sm_set_enabled(pio0, uart_tx_sm, true);
@@ -155,24 +160,27 @@ void
 uart_enter_rx(void)
 {
 	/* wait for tx fifo to empty and final byte to transmit
-	 * + extra max. 1 start + 8 data + 1 stop + 1 par bits */
+	 * + extra 1 start + 8 data + 1 stop bit time*/
 	while (!pio_sm_is_tx_fifo_empty(pio0, uart_tx_sm));
-	sleep_us(1000000U * 11 / UART_BAUD);
+	sleep_us(1000000U * 10 / UART_BAUD);
 	pio_sm_set_enabled(pio0, uart_tx_sm, false);
 
 	/* pull HIGH with low drive-current for steeper rising edge */
-	gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_2MA);
-	pio_sm_set_pins_with_mask(pio0, uart_tx_sm, ~0U, 1 << UART_PIN);
+	//gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_2MA);
+	//pio_sm_set_pins_with_mask(pio0, uart_tx_sm, ~0U, 1 << UART_PIN);
 
 	/* because of OE override pindir false = OUTPUT (!) */
-	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, false);
+	//pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
+
+	/* input */
+	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
 
 	pio_sm_set_enabled(pio0, uart_rx_sm, true);
 	irq_set_enabled(USBCTRL_IRQ, true);
 }
 
 bool
-uart_await_rx(void)
+uart_await_rx(uint32_t timeout_ms)
 {
 	uint32_t start_ms;
 	bool empty;
@@ -182,13 +190,13 @@ uart_await_rx(void)
 		empty = pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm);
 		if (!empty) break;
 		tud_task();
-	} while (board_millis() < start_ms + UART_TIMEOUT);
+	} while (board_millis() < start_ms + timeout_ms);
 
 	return !empty;
 }
 
 bool
-uart_await_tx(void)
+uart_await_tx(uint32_t timeout_ms)
 {
 	uint32_t start_ms;
 	bool full;
@@ -198,7 +206,7 @@ uart_await_tx(void)
 		full = pio_sm_is_tx_fifo_full(pio0, uart_tx_sm);
 		if (!full) break;
 		tud_task();
-	} while (board_millis() < start_ms + UART_TIMEOUT);
+	} while (board_millis() < start_ms + timeout_ms);
 
 	return !full;
 }
@@ -222,7 +230,8 @@ uart_recv(uint8_t *data, uint len)
 
 	for (recv = 0; recv < len; recv++) {
 		if (pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm)) {
-			if (!uart_await_rx()) break;
+			if (!uart_await_rx(UART_TIMEOUT))
+				break;
 		}
 		*data++ = uart_rx_byte();
 	}
@@ -238,7 +247,8 @@ uart_send(const uint8_t *data, uint len)
 	uart_leave_rx();
 	for (sent = 0; sent < len; sent++) {
 		if (pio_sm_is_tx_fifo_full(pio0, uart_tx_sm)) {
-			if (!uart_await_tx()) break;
+			if (!uart_await_tx(UART_TIMEOUT))
+				break;
 		}
 		uart_tx_byte(*data++);
 	}
@@ -248,24 +258,32 @@ uart_send(const uint8_t *data, uint len)
 }
 
 void
-irq_rx_cmd(uint8_t cmd)
+handle_cmd(uint8_t cmd)
 {
-	uint8_t buf[64];
+	uint8_t buf[128];
+
+	DEBUG("Got command %i", cmd);
 
 	switch (cmd) {
 	case CMD_SCAN_MATRIX_REQ:
-		if (SPLIT_ROLE != SLAVE)
+		if (SPLIT_ROLE != SLAVE) {
+			WARN("Got SCAN_MATRIX_REQ as master");
 			break;
+		}
 		scan_pending = true;
 		return;
 	case CMD_SCAN_MATRIX_RESP:
-		if (SPLIT_ROLE != MASTER)
+		if (SPLIT_ROLE != MASTER) {
+			WARN("Got SCAN_MATRIX_RESP as slave");
 			break;
+		}
 		scan_pending = false;
 		return;
 	case CMD_STDIO_PUTS:
-		if (SPLIT_ROLE != MASTER)
+		if (SPLIT_ROLE != MASTER) {
+			WARN("Got STDIO_PUTS as slave");
 			break;
+		}
 		memset(buf, 0, sizeof(buf));
 		uart_recv(buf, sizeof(buf)-1);
 		printf("SLAVE: %s\n", buf);
@@ -278,25 +296,9 @@ irq_rx_cmd(uint8_t cmd)
 void
 irq_rx(void)
 {
-	uint8_t cmd;
-
-	(void) cmd;
-	(void) irq_rx_cmd;
-
 	if (pio_interrupt_get(pio0, 0)) {
-		DEBUG("RX ERR");
+		DEBUG("UART RX ERR");
 		pio_interrupt_clear(pio0, 0);
-	}
-
-	//DEBUG("UART IRQ");
-	// while (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
-	// 	uart_rx_byte();
-	// ASSERT(1 == 0);
-
-	while (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm)) {
-		cmd = uart_rx_byte();
-		DEBUG("UART RX CMD %i\n", cmd);
-		irq_rx_cmd(cmd);
 	}
 }
 
@@ -307,57 +309,47 @@ split_init(void)
 }
 
 void
-split_test(void)
-{
-	pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 0U, 1U << UART_PIN);
-	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, false);
-
-	pio_gpio_init(pio0, UART_PIN);
-	gpio_pull_up(UART_PIN);
-	gpio_set_slew_rate(UART_PIN, GPIO_SLEW_RATE_FAST);
-
-	/* 1 => set INPUT and pull line HIGH from pullup
-	 * 0 => set OUTPUT and pull line LOW from signal */
-	gpio_set_oeover(UART_PIN, GPIO_OVERRIDE_INVERT);
-}
-
-void
 split_task(void)
 {
 	uint32_t start_ms;
 	uint8_t cmd;
 
-	// if (!uart_await_tx())
+	// if (!uart_await_tx(20))
 	// 	return;
-
-	// sleep_us(100);
+	// DEBUG("Sending");
 	// uart_leave_rx();
-	// uart_tx_byte(0xAA);
+	// uart_tx_byte(CMD_SCAN_MATRIX_RESP);
 	// uart_enter_rx();
-
 	// return;
 
 	if (SPLIT_ROLE == MASTER) {
 		scan_pending = true;
 		cmd = CMD_SCAN_MATRIX_REQ;
 		ASSERT(uart_send(&cmd, 1) == 1);
-		scan_matrix(); /* scan our side in parallel */
+		//scan_matrix(); /* scan our side in parallel */
 		start_ms = board_millis();
-		while (scan_pending && board_millis() < start_ms + 50)
+		while (scan_pending && board_millis() < start_ms + 1000) {
+			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
+				handle_cmd(uart_rx_byte());
 			tud_task();
+		}
 		if (scan_pending) WARN("Slave matrix scan timeout");
 		else DEBUG("Slave matrix scan success");
 		scan_pending = false;
 	} else {
-		if (!uart_await_rx())
-			return;
-		cmd = uart_rx_byte();
-		DEBUG("GOT RX: %i", cmd);
+		start_ms = board_millis();
+		while (!scan_pending && board_millis() < start_ms + 1000) {
+			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
+				handle_cmd(uart_rx_byte());
+			tud_task();
+		}
 		if (scan_pending) {
-			scan_matrix();
+			sleep_ms(8); /* ensure tranmitter is ready */
+			//scan_matrix();
 			cmd = CMD_SCAN_MATRIX_RESP;
+			DEBUG("Sending SCAN_MATRIX_RESP %i", cmd);
 			ASSERT(uart_send(&cmd, 1) == 1);
 			scan_pending = false;
 		}
-	} 
+	}
 }
