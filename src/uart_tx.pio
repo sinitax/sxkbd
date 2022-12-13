@@ -1,10 +1,10 @@
 .program uart_tx
-.side_set 1 opt pindirs
+.side_set 1 opt
 
 .wrap_target
     pull    block           side 1      [7]     ; IDLE / STOP bit
     set     x, 7            side 0      [7]     ; START bit
 bitloop:
-    out     pindirs, 1                          ; 8 DATA bits
+    out     pins, 1                             ; 8 DATA bits
     jmp     x--, bitloop                [6]
 .wrap

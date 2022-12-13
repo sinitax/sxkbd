@@ -51,7 +51,7 @@ target_compile_options(pico_stdio INTERFACE
 )
 
 target_compile_options(${PROJECT} PRIVATE
-	"-DSPLIT_SIDE=${SPLIT_LEFT}"
+	"-DSPLIT_SIDE=${SPLIT_SIDE}"
 	"-DSPLIT_ROLE=${SPLIT_ROLE}"
 )
 

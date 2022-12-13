@@ -1,7 +1,7 @@
 FAMILY ?= rp2040
 PICO_SDK_PATH ?= lib/picosdk
 
-all: left
+all: left right
 
 clean:
 	rm -rf .build

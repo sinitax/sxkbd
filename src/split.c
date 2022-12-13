@@ -25,7 +25,20 @@
 
 #define UART_TIMEOUT 20
 #define UART_BAUD 9600
-#define UART_PIN 1
+
+#define LEFT 0
+#define RIGHT 1
+
+#define SLAVE 0
+#define MASTER 1
+
+#if SPLIT_SIDE == LEFT
+#define UART_TX_PIN 0
+#define UART_RX_PIN 1
+#elif SPLIT_SIDE == RIGHT
+#define UART_TX_PIN 1
+#define UART_RX_PIN 0
+#endif
 
 enum {
 	CMD_SCAN_MATRIX_REQ = 0xA0,
@@ -33,15 +46,9 @@ enum {
 	CMD_STDIO_PUTS
 };
 
-enum { SLAVE, MASTER };
-enum { LEFT, RIGHT };
-
-static void uart_tx_init(void);
-static void uart_rx_init(void);
+static void uart_tx_sm_init(void);
+static void uart_rx_sm_init(void);
 static void uart_full_init(void);
-
-static void uart_leave_rx(void);
-static void uart_enter_rx(void);
 
 static bool uart_await_rx(uint32_t timeout_ms);
 static bool uart_await_tx(uint32_t timeout_ms);
@@ -64,7 +71,7 @@ static uint uart_rx_sm_offset;
 static bool scan_pending = false;
 
 void
-uart_tx_init(void)
+uart_tx_sm_init(void)
 {
 	pio_sm_config config;
 
@@ -73,8 +80,8 @@ uart_tx_init(void)
 
 	config = uart_tx_program_get_default_config(uart_tx_sm_offset);
 	sm_config_set_out_shift(&config, true, false, 32);
-	sm_config_set_out_pins(&config, UART_PIN, 1);
-	sm_config_set_sideset_pins(&config, UART_PIN);
+	sm_config_set_out_pins(&config, UART_TX_PIN, 1);
+	sm_config_set_sideset_pins(&config, UART_TX_PIN);
 	sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX);
 	sm_config_set_clkdiv(&config,
 		((float) clock_get_hz(clk_sys)) / (8 * UART_BAUD));
@@ -84,7 +91,7 @@ uart_tx_init(void)
 }
 
 void
-uart_rx_init(void)
+uart_rx_sm_init(void)
 {
 	pio_sm_config config;
 
@@ -92,8 +99,8 @@ uart_rx_init(void)
 	uart_rx_sm_offset = pio_add_program(pio0, &uart_rx_program);
 
 	config = uart_rx_program_get_default_config(uart_rx_sm_offset);
-	sm_config_set_in_pins(&config, UART_PIN);
-	sm_config_set_jmp_pin(&config, UART_PIN);
+	sm_config_set_in_pins(&config, UART_RX_PIN);
+	sm_config_set_jmp_pin(&config, UART_RX_PIN);
 	sm_config_set_in_shift(&config, true, false, 32);
 	sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_RX);
 	sm_config_set_clkdiv(&config,
@@ -106,77 +113,31 @@ uart_rx_init(void)
 void
 uart_full_init(void)
 {
-	pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 0U, 1U << UART_PIN);
-	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, false);
+	pio_gpio_init(pio0, UART_RX_PIN);
+	pio_sm_set_pins_with_mask(pio0, uart_rx_sm, 1U, 1U << UART_RX_PIN);
+	pio_sm_set_consecutive_pindirs(pio0, uart_rx_sm, UART_RX_PIN, 1, false);
 
-	pio_gpio_init(pio0, UART_PIN);
-	gpio_pull_up(UART_PIN);
-	gpio_set_slew_rate(UART_PIN, GPIO_SLEW_RATE_FAST);
-	/* 1 => set INPUT and pull line HIGH from pullup
-	 * 0 => set OUTPUT and pull line LOW from signal */
-	gpio_set_oeover(UART_PIN, GPIO_OVERRIDE_INVERT);
+	pio_gpio_init(pio0, UART_TX_PIN);
+	gpio_set_slew_rate(UART_TX_PIN, GPIO_SLEW_RATE_FAST);
+	gpio_set_drive_strength(UART_TX_PIN, GPIO_DRIVE_STRENGTH_12MA);
+	pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 1U, 1U << UART_TX_PIN);
+	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_TX_PIN, 1, true);
 
-	gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_12MA);
-
-	uart_rx_init();
-	uart_tx_init();
+	uart_rx_sm_init();
+	uart_tx_sm_init();
 
 	pio_set_irq0_source_enabled(pio0,
 		pis_sm0_rx_fifo_not_empty + uart_rx_sm, false);
 	pio_set_irq0_source_enabled(pio0,
 		pis_sm0_tx_fifo_not_full + uart_tx_sm, false);
 	pio_set_irq0_source_enabled(pio0, pis_interrupt0, true);
-	pio_set_irq0_source_enabled(pio0, pis_interrupt1, true);
 
 	irq_set_priority(PIO0_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
 	irq_set_exclusive_handler(PIO0_IRQ_0, irq_rx);
 	irq_set_enabled(PIO0_IRQ_0, true);
 
-	pio_sm_set_enabled(pio0, uart_tx_sm, true);
-	uart_enter_rx();
-}
-
-void
-uart_leave_rx(void)
-{
-	irq_set_enabled(USBCTRL_IRQ, false);
-	pio_sm_set_enabled(pio0, uart_rx_sm, false);
-
-	/* because of OE override pindir true = INPUT (!) */
-	//pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
-
-	/* drive LOW with high drive-current for steep falling edges */
-	//pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 0U, 1 << UART_PIN);
-	//gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_12MA);
-
-	/* input */
-	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
-
-	pio_sm_restart(pio0, uart_tx_sm);
-	pio_sm_set_enabled(pio0, uart_tx_sm, true);
-}
-
-void
-uart_enter_rx(void)
-{
-	/* wait for tx fifo to empty and final byte to transmit
-	 * + extra 1 start + 8 data + 1 stop bit time*/
-	while (!pio_sm_is_tx_fifo_empty(pio0, uart_tx_sm));
-	sleep_us(1000000U * 10 / UART_BAUD);
-	pio_sm_set_enabled(pio0, uart_tx_sm, false);
-
-	/* pull HIGH with low drive-current for steeper rising edge */
-	//gpio_set_drive_strength(UART_PIN, GPIO_DRIVE_STRENGTH_2MA);
-	//pio_sm_set_pins_with_mask(pio0, uart_tx_sm, ~0U, 1 << UART_PIN);
-
-	/* because of OE override pindir false = OUTPUT (!) */
-	//pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
-
-	/* input */
-	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_PIN, 1, true);
-
 	pio_sm_set_enabled(pio0, uart_rx_sm, true);
-	irq_set_enabled(USBCTRL_IRQ, true);
+	pio_sm_set_enabled(pio0, uart_tx_sm, true);
 }
 
 bool
@@ -209,6 +170,7 @@ uart_await_tx(uint32_t timeout_ms)
 	} while (board_millis() < start_ms + timeout_ms);
 
 	return !full;
+	pio_sm_set_enabled(pio0, uart_tx_sm, true);
 }
 
 uint8_t
@@ -244,7 +206,6 @@ uart_send(const uint8_t *data, uint len)
 {
 	uint sent;
 
-	uart_leave_rx();
 	for (sent = 0; sent < len; sent++) {
 		if (pio_sm_is_tx_fifo_full(pio0, uart_tx_sm)) {
 			if (!uart_await_tx(UART_TIMEOUT))
@@ -252,7 +213,6 @@ uart_send(const uint8_t *data, uint len)
 		}
 		uart_tx_byte(*data++);
 	}
-	uart_enter_rx();
 
 	return sent;
 }
@@ -314,38 +274,38 @@ split_task(void)
 	uint32_t start_ms;
 	uint8_t cmd;
 
-	// if (!uart_await_tx(20))
-	// 	return;
-	// DEBUG("Sending");
-	// uart_leave_rx();
-	// uart_tx_byte(CMD_SCAN_MATRIX_RESP);
-	// uart_enter_rx();
-	// return;
+	//if (!uart_await_tx(20))
+	//	return;
+	//DEBUG("Sending");
+	//uart_tx_byte(CMD_SCAN_MATRIX_RESP);
+	//return;
 
 	if (SPLIT_ROLE == MASTER) {
 		scan_pending = true;
 		cmd = CMD_SCAN_MATRIX_REQ;
 		ASSERT(uart_send(&cmd, 1) == 1);
-		//scan_matrix(); /* scan our side in parallel */
+		scan_matrix(); /* scan our side in parallel */
 		start_ms = board_millis();
-		while (scan_pending && board_millis() < start_ms + 1000) {
-			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
-				handle_cmd(uart_rx_byte());
-			tud_task();
-		}
-		if (scan_pending) WARN("Slave matrix scan timeout");
-		else DEBUG("Slave matrix scan success");
-		scan_pending = false;
-	} else {
-		start_ms = board_millis();
-		while (!scan_pending && board_millis() < start_ms + 1000) {
+		while (scan_pending && board_millis() < start_ms + 20) {
 			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
 				handle_cmd(uart_rx_byte());
 			tud_task();
 		}
 		if (scan_pending) {
-			sleep_ms(8); /* ensure tranmitter is ready */
-			//scan_matrix();
+			WARN("Slave matrix scan timeout");
+		} else {
+			DEBUG("Slave matrix scan success");
+		}
+		scan_pending = false;
+	} else {
+		start_ms = board_millis();
+		while (!scan_pending && board_millis() < start_ms + 20) {
+			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
+				handle_cmd(uart_rx_byte());
+			tud_task();
+		}
+		if (scan_pending) {
+			scan_matrix();
 			cmd = CMD_SCAN_MATRIX_RESP;
 			DEBUG("Sending SCAN_MATRIX_RESP %i", cmd);
 			ASSERT(uart_send(&cmd, 1) == 1);
