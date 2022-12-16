@@ -1,5 +1,6 @@
 #include "util.h"
 #include "board.h"
+#include "class/cdc/cdc_device.h"
 #include "led.h"
 #include "ws2812.h"
 
@@ -19,7 +20,7 @@ panic_task(const char *fmtstr, va_list ap, uint32_t sleep_ms)
 	static uint32_t start_ms = 0;
 	va_list cpy;
 
-	if (!tud_cdc_available())
+	if (!tud_cdc_connected())
 		return;
 
 	if (!start_ms) start_ms = board_millis();
@@ -29,8 +30,8 @@ panic_task(const char *fmtstr, va_list ap, uint32_t sleep_ms)
 
 	va_copy(cpy, ap);
 	vprintf(fmtstr, cpy);
-	printf("\n\r");
-	stdio_flush();
+	printf("\n");
+	tud_cdc_write_flush();
 
 	start_ms += sleep_ms;
 }
@@ -41,7 +42,7 @@ stdio_log(int level, const char *fmtstr, ...)
 {
 	va_list ap;
 
-	if (!tud_cdc_available())
+	if (!tud_cdc_connected())
 		return;
 
 	if (level > loglevel)
@@ -50,8 +51,8 @@ stdio_log(int level, const char *fmtstr, ...)
 	va_start(ap, fmtstr);
 	vprintf(fmtstr, ap);
 	va_end(ap);
-	printf("\n\r");
-	stdio_flush();
+	printf("\n");
+	tud_cdc_write_flush();
 }
 
 void

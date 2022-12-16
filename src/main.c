@@ -1,6 +1,7 @@
 #include "board.h"
 #include "usb_stdio.h"
 #include "matrix.h"
+#include "keysym.h"
 #include "split.h"
 #include "led.h"
 #include "hid.h"
@@ -21,9 +22,9 @@
 #include <stdio.h>
 #include <string.h>
 
-bool send_hid_report(int id, bool state);
+bool send_hid_report(int id);
+void cdc_task(void);
 
-static bool hit_state = false;
 const uint32_t **keymap_layers = keymap_layers_de;
 
 int
@@ -39,9 +40,11 @@ main(void)
 
 	while (true) {
 		tud_task();
+		cdc_task();
 		led_task();
 		split_task();
 		//hid_task();
+		send_hid_report(REPORT_ID_MIN);
 	}
 
 	return 0;
@@ -88,7 +91,6 @@ tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 void
 tud_cdc_rx_cb(uint8_t itf)
 {
-	printf("ALIVE\n\r");
 }
 
 uint16_t
@@ -111,20 +113,22 @@ tud_hid_report_complete_cb(uint8_t instance,
 	uint8_t id;
 
 	for (id = report[0] + 1; id < REPORT_ID_MAX; id++) {
-		if (send_hid_report(id, hit_state))
+		if (send_hid_report(id))
 			break;
 	}
 }
 
 bool
-send_keyboard_report(bool state)
+send_keyboard_report(void)
 {
 	static bool cleared = true;
-	uint8_t keycode[6] = { 0 };
+	uint8_t report[6] = { 0 };
+	bool any;
 
-	if (state) {
-		keycode[0] = HID_KEY_A;
-		tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+	any = hid_gen_report(report);
+
+	if (any) {
+		tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, report);
 		cleared = false;
 		return true;
 	} else if (!cleared) {
@@ -169,30 +173,85 @@ send_consumer_control_report(bool state)
 }
 
 bool
-send_hid_report(int id, bool state)
+send_hid_report(int id)
 {
+	if (!tud_hid_ready()) return false;
+
 	switch (id) {
 	case REPORT_ID_KEYBOARD:
-		return send_keyboard_report(state);
+		return send_keyboard_report();
 	case REPORT_ID_MOUSE:
-		return send_mouse_report(state);
+		return send_mouse_report(false);
 	case REPORT_ID_CONSUMER_CONTROL:
-		return send_consumer_control_report(state);
+		return send_consumer_control_report(false);
 	}
 
 	return false;
 }
 
 void
-send_hid_report_timed(void)
+process_cmd(char *cmd)
 {
-	const uint32_t period_ms = 1000;
-	static uint32_t start_ms = 0;
+	char *arg, *tok;
 
-	if (!tud_hid_ready()) return;
+	tok = strchr(cmd, ' ');
+	if (tok) {
+		*tok = '\0';
+		arg = tok + 1;
+	} else {
+		arg = cmd + strlen(cmd);
+	}
 
-	hit_state = (board_millis() - start_ms < period_ms);
-	if (hit_state) start_ms += period_ms;
+	if (!strcmp(cmd, "log")) {
+		if (!strcmp(arg, "")) {
+			printf("Levels: debug, info, warn, err\n");
+		} else if (!strcmp(arg, "debug")) {
+			loglevel = LOG_DEBUG;
+		} else if (!strcmp(arg, "info")) {
+			loglevel = LOG_INFO;
+		} else if (!strcmp(arg, "warn")) {
+			loglevel = LOG_WARN;
+		} else if (!strcmp(arg, "warn")) {
+			loglevel = LOG_ERR;
+		} else {
+			printf("Invalid log level: %s\n", arg);
+		}
+	} else {
+		printf("Invalid command: %s\n", cmd);
+	}
+}
 
-	send_hid_report(REPORT_ID_MIN, hit_state);
+void
+cdc_task(void)
+{
+	static char cmdbuf[256];
+	static int cmdlen = 0;
+	char c;
+
+	do {
+		if (cmdlen)
+			tud_task();
+
+		if (tud_cdc_connected() && tud_cdc_available()
+				&& tud_cdc_read(&c, 1)) {
+			if (c == '\r' || c == '\n') {
+				printf("\n");
+				tud_cdc_write_flush();
+				if (cmdlen) {
+					cmdbuf[cmdlen] = 0;
+					process_cmd(cmdbuf);
+					cmdlen = 0;
+				}
+			} else if (c == 4) {
+				printf("ALIVE!\n");
+			} else if (cmdlen == ARRLEN(cmdbuf)) {
+				printf("\n--- cmd too long ---\n");
+				cmdlen = 0;
+			} else {
+				printf("%c", c);
+				tud_cdc_write_flush();
+				cmdbuf[cmdlen++] = c;
+			}
+		}
+	} while (cmdlen);
 }

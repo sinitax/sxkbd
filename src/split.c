@@ -26,12 +26,6 @@
 #define UART_TIMEOUT 20
 #define UART_BAUD 9600
 
-#define LEFT 0
-#define RIGHT 1
-
-#define SLAVE 0
-#define MASTER 1
-
 #if SPLIT_SIDE == LEFT
 #define UART_TX_PIN 0
 #define UART_RX_PIN 1
@@ -68,6 +62,7 @@ static uint uart_tx_sm_offset;
 static uint uart_rx_sm;
 static uint uart_rx_sm_offset;
 
+static uint32_t halfmat;
 static bool scan_pending = false;
 
 void
@@ -237,6 +232,8 @@ handle_cmd(uint8_t cmd)
 			WARN("Got SCAN_MATRIX_RESP as slave");
 			break;
 		}
+		if (uart_recv((uint8_t *) &halfmat, 4) != 4)
+			WARN("Incomplete matrix received");
 		scan_pending = false;
 		return;
 	case CMD_STDIO_PUTS:
@@ -295,6 +292,7 @@ split_task(void)
 			WARN("Slave matrix scan timeout");
 		} else {
 			DEBUG("Slave matrix scan success");
+			matrix_decode_half(SPLIT_OPP(SPLIT_SIDE), halfmat);
 		}
 		scan_pending = false;
 	} else {
@@ -309,6 +307,8 @@ split_task(void)
 			cmd = CMD_SCAN_MATRIX_RESP;
 			DEBUG("Sending SCAN_MATRIX_RESP %i", cmd);
 			ASSERT(uart_send(&cmd, 1) == 1);
+			halfmat = matrix_encode_half(SPLIT_SIDE);
+			ASSERT(uart_send((uint8_t *) &halfmat, 4) == 4);
 			scan_pending = false;
 		}
 	}

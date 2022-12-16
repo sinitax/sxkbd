@@ -1,5 +1,6 @@
 #include "usb_stdio.h"
 
+#include "pico/stdio.h"
 #include "pico/stdio/driver.h"
 #include "tusb.h"
 
@@ -24,6 +25,7 @@ void
 usb_stdio_flush(void)
 {
 	tud_cdc_write_flush();
+	tud_task();
 }
 
 int
@@ -36,5 +38,6 @@ void
 usb_stdio_init(void)
 {
 	stdio_set_driver_enabled(&usb_stdio, true);
+	stdio_set_translate_crlf(&usb_stdio, true);
 	stdio_init_all();
 }
