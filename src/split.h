@@ -10,3 +10,5 @@
 
 void split_init(void);
 void split_task(void);
+
+extern int split_role;

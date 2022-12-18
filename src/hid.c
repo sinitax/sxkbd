@@ -162,7 +162,7 @@ update_report(void)
 	for (y = 0; y < KEY_ROWS; y++) {
 		for (x = 0; x < KEY_COLS; x++) {
 			if (keymat[y][x] != keymat_prev[y][x]) {
-				if (bounce_mat[y][x] > now_us - 25000) {
+				if (bounce_mat[y][x] > now_us - 50000) {
 					WARN("Bouncing prevented %i vs %i",
 						keymat[y][x], keymat_prev[y][x]);
 					keymat[y][x] = keymat_prev[y][x];

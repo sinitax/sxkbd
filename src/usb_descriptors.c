@@ -113,10 +113,10 @@ tusb_desc_device_qualifier_t const desc_device_qualifier =
 #endif
 
 char const *string_desc_arr[] = {
-	[0] = (const char[]) { 0x09, 0x04 }, /* Supported language is English */
-	[1] = "TinyUSB",                     /* Manufacturer */
-	[2] = "TinyUSB Device",              /* Product */
-	[3] = "123456",                      /* Serials, should use chip ID */
+	[0] = "\x09\x04\x09\x00", /* bCountryCode: Germany */
+	[1] = "TinyUSB",          /* Manufacturer */
+	[2] = "TinyUSB Device",   /* Product */
+	[3] = "123456",           /* Serials, should use chip ID */
 	[4] = "SXKBD CDC",
 	[5] = "SXKBD HID"
 };
@@ -162,8 +162,8 @@ tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 	(void) langid;
 
 	if (index == 0) {
-		memcpy(&_desc_str[1], string_desc_arr[0], 2);
-		chr_count = 1;
+		memcpy(&_desc_str[1], string_desc_arr[0], 4);
+		chr_count = 2;
 	} else {
 		if (index >= ARRLEN(string_desc_arr))
 			return NULL;

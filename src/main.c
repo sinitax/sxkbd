@@ -56,6 +56,9 @@ main(void)
 void
 tud_mount_cb(void)
 {
+#ifndef SPLIT_ROLE
+	split_role = MASTER;
+#endif
 	led_rgb = WS2812_U32RGB(100, 0, 100);
 	led_mode = LED_ON;
 	led_reset = true;
@@ -73,6 +76,9 @@ tud_umount_cb(void)
 void
 tud_suspend_cb(bool remote_wakeup_en)
 {
+#ifndef SPLIT_ROLE
+	split_role = SLAVE;
+#endif
 	led_rgb = WS2812_U32RGB(100, 100, 100);
 	led_mode = LED_ON;
 	led_reset = true;

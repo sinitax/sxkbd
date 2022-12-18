@@ -13,9 +13,9 @@
 #define IS_KEY(code) (KC_A <= (code) && (code) <= KC_EXSEL)
 #define IS_MOD(code) (KC_LEFT_CTRL <= (code) && (code) <= KC_RIGHT_GUI)
 
-#define IS_SPECIAL(code) ((0xA5 <= (code) && (code) <= 0xDF) || (0xE8 <= (code) && (code) <= 0xFF))
-#define IS_SYSTEM(code) (KC_PWR <= (code) && (code) <= KC_WAKE)
-#define IS_CONSUMER(code) (KC_MUTE <= (code) && (code) <= KC_BRID)
+// #define IS_SPECIAL(code) ((0xA5 <= (code) && (code) <= 0xDF) || (0xE8 <= (code) && (code) <= 0xFF))
+// #define IS_SYSTEM(code) (KC_PWR <= (code) && (code) <= KC_WAKE)
+// #define IS_CONSUMER(code) (KC_MUTE <= (code) && (code) <= KC_BRID)
 
 #define IS_MOUSEKEY(code) (KC_MS_UP <= (code) && (code) <= KC_MS_ACCEL2)
 #define IS_MOUSEKEY_MOVE(code) (KC_MS_UP <= (code) && (code) <= KC_MS_RIGHT)

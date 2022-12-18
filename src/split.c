@@ -64,6 +64,8 @@ static uint uart_rx_sm_offset;
 static uint32_t halfmat;
 static bool scan_pending = false;
 
+int split_role;
+
 void
 uart_tx_sm_init(void)
 {
@@ -218,14 +220,14 @@ handle_cmd(uint8_t cmd)
 
 	switch (cmd) {
 	case CMD_SCAN_KEYMAT_REQ:
-		if (SPLIT_ROLE != SLAVE) {
+		if (split_role != SLAVE) {
 			WARN("Got SCAN_KEYMAT_REQ as master");
 			break;
 		}
 		scan_pending = true;
 		return;
 	case CMD_SCAN_KEYMAT_RESP:
-		if (SPLIT_ROLE != MASTER) {
+		if (split_role != MASTER) {
 			WARN("Got SCAN_KEYMAT_RESP as slave");
 			break;
 		}
@@ -234,7 +236,7 @@ handle_cmd(uint8_t cmd)
 		scan_pending = false;
 		return;
 	case CMD_STDIO_PUTS:
-		if (SPLIT_ROLE != MASTER) {
+		if (split_role != MASTER) {
 			WARN("Got STDIO_PUTS as slave");
 			break;
 		}
@@ -260,6 +262,11 @@ void
 split_init(void)
 {
 	uart_full_init();
+#ifdef SPLIT_ROLE
+	split_role = SPLIT_ROLE;
+#else
+	split_role = SLAVE;
+#endif
 }
 
 void
@@ -268,7 +275,7 @@ split_task(void)
 	uint32_t start_ms;
 	uint8_t cmd;
 
-	if (SPLIT_ROLE == MASTER) {
+	if (split_role == MASTER) {
 		scan_pending = true;
 		cmd = CMD_SCAN_KEYMAT_REQ;
 		ASSERT(uart_send(&cmd, 1) == 1);
