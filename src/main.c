@@ -1,6 +1,6 @@
 #include "board.h"
 #include "usb_stdio.h"
-#include "matrix.h"
+#include "keymat.h"
 #include "keysym.h"
 #include "split.h"
 #include "led.h"
@@ -22,29 +22,32 @@
 #include <stdio.h>
 #include <string.h>
 
-bool send_hid_report(int id);
 void cdc_task(void);
-
-const uint32_t **keymap_layers = keymap_layers_de;
 
 int
 main(void)
 {
+	uint32_t start, stop;
+
 	board_init();
 	tud_init(BOARD_TUD_RHPORT);
 	usb_stdio_init();
 	led_init();
-	matrix_init();
+	keymat_init();
 	split_init();
-	//hid_init();
+	hid_init();
 
+	start = board_millis();
 	while (true) {
 		tud_task();
 		cdc_task();
 		led_task();
 		split_task();
-		//hid_task();
-		send_hid_report(REPORT_ID_MIN);
+		hid_task();
+
+		stop = board_millis();
+		DEBUG("Main loop: %i ms", stop - start);
+		start = stop;
 	}
 
 	return 0;
@@ -104,89 +107,6 @@ void
 tud_hid_set_report_cb(uint8_t itf, uint8_t report_id,
 	hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
-}
-
-void
-tud_hid_report_complete_cb(uint8_t instance,
-	uint8_t const *report, uint8_t len)
-{
-	uint8_t id;
-
-	for (id = report[0] + 1; id < REPORT_ID_MAX; id++) {
-		if (send_hid_report(id))
-			break;
-	}
-}
-
-bool
-send_keyboard_report(void)
-{
-	static bool cleared = true;
-	uint8_t report[6] = { 0 };
-	bool any;
-
-	any = hid_gen_report(report);
-
-	if (any) {
-		tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, report);
-		cleared = false;
-		return true;
-	} else if (!cleared) {
-		tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-		cleared = true;
-		return true;
-	}
-
-	return false;
-}
-
-bool
-send_mouse_report(bool state)
-{
-	if (state) {
-		tud_hid_mouse_report(REPORT_ID_MOUSE, 0, 10, 10, 0, 0);
-		return true;
-	}
-
-	return false;
-}
-
-bool
-send_consumer_control_report(bool state)
-{
-	static bool cleared = true;
-	uint16_t report;
-
-	if (state) {
-		report = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
-		tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &report, 2);
-		cleared = false;
-		return true;
-	} else if (!cleared) {
-		report = 0;
-		tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &report, 2);
-		cleared = true;
-		return true;
-	}
-
-	return false;
-}
-
-bool
-send_hid_report(int id)
-{
-	if (!tud_hid_ready()) return false;
-
-	switch (id) {
-	case REPORT_ID_KEYBOARD:
-		return send_keyboard_report();
-	case REPORT_ID_MOUSE:
-		return send_mouse_report(false);
-	case REPORT_ID_CONSUMER_CONTROL:
-		return send_consumer_control_report(false);
-	}
-
-	return false;
 }
 
 void

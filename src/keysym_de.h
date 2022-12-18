@@ -115,6 +115,9 @@
 #define DE_COLN S(DE_DOT)  // :
 #define DE_UNDS S(DE_MINS) // _
 
+/* alternate names */
+#define DE_LESS DE_LABK
+#define DE_GRTR S(DE_LABK)
 
 /* AltGr symbols
  * ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───────┐

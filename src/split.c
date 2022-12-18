@@ -1,12 +1,11 @@
-#include "hardware/regs/io_bank0.h"
-#include "hardware/structs/padsbank0.h"
+#include "split.h"
+#include "util.h"
+#include "keymat.h"
 #include "uart_rx.pio.h"
 #include "uart_tx.pio.h"
 
-#include "split.h"
-#include "util.h"
-#include "matrix.h"
-
+#include "hardware/regs/io_bank0.h"
+#include "hardware/structs/padsbank0.h"
 #include "hardware/pio.h"
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
@@ -35,8 +34,8 @@
 #endif
 
 enum {
-	CMD_SCAN_MATRIX_REQ = 0xA0,
-	CMD_SCAN_MATRIX_RESP,
+	CMD_SCAN_KEYMAT_REQ = 0xA0,
+	CMD_SCAN_KEYMAT_RESP,
 	CMD_STDIO_PUTS
 };
 
@@ -217,19 +216,17 @@ handle_cmd(uint8_t cmd)
 {
 	uint8_t buf[128];
 
-	DEBUG("Got command %i", cmd);
-
 	switch (cmd) {
-	case CMD_SCAN_MATRIX_REQ:
+	case CMD_SCAN_KEYMAT_REQ:
 		if (SPLIT_ROLE != SLAVE) {
-			WARN("Got SCAN_MATRIX_REQ as master");
+			WARN("Got SCAN_KEYMAT_REQ as master");
 			break;
 		}
 		scan_pending = true;
 		return;
-	case CMD_SCAN_MATRIX_RESP:
+	case CMD_SCAN_KEYMAT_RESP:
 		if (SPLIT_ROLE != MASTER) {
-			WARN("Got SCAN_MATRIX_RESP as slave");
+			WARN("Got SCAN_KEYMAT_RESP as slave");
 			break;
 		}
 		if (uart_recv((uint8_t *) &halfmat, 4) != 4)
@@ -271,17 +268,11 @@ split_task(void)
 	uint32_t start_ms;
 	uint8_t cmd;
 
-	//if (!uart_await_tx(20))
-	//	return;
-	//DEBUG("Sending");
-	//uart_tx_byte(CMD_SCAN_MATRIX_RESP);
-	//return;
-
 	if (SPLIT_ROLE == MASTER) {
 		scan_pending = true;
-		cmd = CMD_SCAN_MATRIX_REQ;
+		cmd = CMD_SCAN_KEYMAT_REQ;
 		ASSERT(uart_send(&cmd, 1) == 1);
-		scan_matrix(); /* scan our side in parallel */
+		keymat_scan(); /* scan our side in parallel */
 		start_ms = board_millis();
 		while (scan_pending && board_millis() < start_ms + 20) {
 			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
@@ -292,7 +283,7 @@ split_task(void)
 			WARN("Slave matrix scan timeout");
 		} else {
 			DEBUG("Slave matrix scan success");
-			matrix_decode_half(SPLIT_OPP(SPLIT_SIDE), halfmat);
+			keymat_decode_half(SPLIT_OPP(SPLIT_SIDE), halfmat);
 		}
 		scan_pending = false;
 	} else {
@@ -303,11 +294,11 @@ split_task(void)
 			tud_task();
 		}
 		if (scan_pending) {
-			scan_matrix();
-			cmd = CMD_SCAN_MATRIX_RESP;
-			DEBUG("Sending SCAN_MATRIX_RESP %i", cmd);
+			keymat_scan();
+			cmd = CMD_SCAN_KEYMAT_RESP;
+			DEBUG("Sending SCAN_KEYMAT_RESP %i", cmd);
 			ASSERT(uart_send(&cmd, 1) == 1);
-			halfmat = matrix_encode_half(SPLIT_SIDE);
+			halfmat = keymat_encode_half(SPLIT_SIDE);
 			ASSERT(uart_send((uint8_t *) &halfmat, 4) == 4);
 			scan_pending = false;
 		}

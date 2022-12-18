@@ -1,4 +1,4 @@
-#include "board.h"
+#include "hid.h"
 
 #include "class/hid/hid_device.h"
 #include "tusb.h"

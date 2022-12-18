@@ -3,6 +3,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define REPORT_ID_MIN REPORT_ID_KEYBOARD
+enum {
+	REPORT_ID_KEYBOARD = 1,
+	REPORT_ID_MOUSE,
+	REPORT_ID_CONSUMER_CONTROL,
+	REPORT_ID_MAX
+};
+
 void hid_init(void);
-bool hid_gen_report(uint8_t *keycode);
 void hid_task(void);

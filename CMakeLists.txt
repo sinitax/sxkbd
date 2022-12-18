@@ -21,7 +21,7 @@ target_sources(${PROJECT} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/src/split.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/ws2812.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
-	${CMAKE_CURRENT_SOURCE_DIR}/src/matrix.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/keymat.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/keymap.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/usb_stdio.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c

@@ -4,3 +4,6 @@
 
 extern const uint32_t *keymap_layers_de[];
 extern const uint32_t keymap_layers_de_count;
+
+extern const uint32_t **keymap_layers;
+extern uint32_t keymap_layers_count;
