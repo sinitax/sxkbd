@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 
-int loglevel = LOG_DEBUG;
+int loglevel = LOG_INFO;
 
 static void
 __attribute__((format(printf, 1, 0)))

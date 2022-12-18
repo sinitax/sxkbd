@@ -1,6 +1,8 @@
 #pragma once
+
 /*
- * Keycodes based on HID Keyboard/Keypad Usage Page (0x07) plus media keys from Generic Desktop Page (0x01) and Consumer Page (0x0C)
+ * Keycodes based on HID Keyboard/Keypad Usage Page (0x07) plus media keys
+ * from Generic Desktop Page (0x01) and Consumer Page (0x0C)
  *
  * See https://web.archive.org/web/20060218214400/http://www.usb.org/developers/devclass_docs/Hut1_12.pdf
  * or http://www.usb.org/developers/hidpage/Hut1_12v2.pdf (older)
@@ -20,25 +22,6 @@
 #define IS_MOUSEKEY_BUTTON(code) (KC_MS_BTN1 <= (code) && (code) <= KC_MS_BTN8)
 #define IS_MOUSEKEY_WHEEL(code) (KC_MS_WH_UP <= (code) && (code) <= KC_MS_WH_RIGHT)
 #define IS_MOUSEKEY_ACCEL(code) (KC_MS_ACCEL0 <= (code) && (code) <= KC_MS_ACCEL2)
-
-#define MOD_BIT(code) (1 << MOD_INDEX(code))
-#define MOD_INDEX(code) ((code)&0x07)
-
-#define MOD_MASK_CTRL (MOD_BIT(KC_LEFT_CTRL) | MOD_BIT(KC_RIGHT_CTRL))
-#define MOD_MASK_SHIFT (MOD_BIT(KC_LEFT_SHIFT) | MOD_BIT(KC_RIGHT_SHIFT))
-#define MOD_MASK_ALT (MOD_BIT(KC_LEFT_ALT) | MOD_BIT(KC_RIGHT_ALT))
-#define MOD_MASK_GUI (MOD_BIT(KC_LEFT_GUI) | MOD_BIT(KC_RIGHT_GUI))
-#define MOD_MASK_CS (MOD_MASK_CTRL | MOD_MASK_SHIFT)
-#define MOD_MASK_CA (MOD_MASK_CTRL | MOD_MASK_ALT)
-#define MOD_MASK_CG (MOD_MASK_CTRL | MOD_MASK_GUI)
-#define MOD_MASK_SA (MOD_MASK_SHIFT | MOD_MASK_ALT)
-#define MOD_MASK_SG (MOD_MASK_SHIFT | MOD_MASK_GUI)
-#define MOD_MASK_AG (MOD_MASK_ALT | MOD_MASK_GUI)
-#define MOD_MASK_CSA (MOD_MASK_CTRL | MOD_MASK_SHIFT | MOD_MASK_ALT)
-#define MOD_MASK_CSG (MOD_MASK_CTRL | MOD_MASK_SHIFT | MOD_MASK_GUI)
-#define MOD_MASK_CAG (MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_GUI)
-#define MOD_MASK_SAG (MOD_MASK_SHIFT | MOD_MASK_ALT | MOD_MASK_GUI)
-#define MOD_MASK_CSAG (MOD_MASK_CTRL | MOD_MASK_SHIFT | MOD_MASK_ALT | MOD_MASK_GUI)
 
 /* Short names for ease of definition of keymap */
 

@@ -23,7 +23,7 @@
 #include <stdint.h>
 
 #define UART_TIMEOUT 20
-#define UART_BAUD 9600
+#define UART_BAUD 115200
 
 #if SPLIT_SIDE == LEFT
 #define UART_TX_PIN 0
@@ -272,6 +272,7 @@ split_task(void)
 		scan_pending = true;
 		cmd = CMD_SCAN_KEYMAT_REQ;
 		ASSERT(uart_send(&cmd, 1) == 1);
+		keymat_next();
 		keymat_scan(); /* scan our side in parallel */
 		start_ms = board_millis();
 		while (scan_pending && board_millis() < start_ms + 20) {

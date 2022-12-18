@@ -1,11 +1,13 @@
 #pragma once
 
+#include "keycode.h"
+
 #define XXXXXXX KC_NO
 #define _______ KC_TRNS
 
-#define MASK(hi, lo) ((1 << hi) - (1 << lo))
+#define MASK(hi, lo) ((1 << (hi)) - (1 << (lo)))
 
-#define IS_CODE(x)   (!((x) & MASK(B_MAX, 8)))
+#define IS_CODE(x)   (!((x) & MASK(B_MODMAX+1, B_MODMIN)))
 #define IS_CTRL(x)   ((x) & (1 << B_CTRL))
 #define IS_SHIFT(x)  ((x) & (1 << B_SHIFT))
 #define IS_ALT(x)    ((x) & (1 << B_ALT))
@@ -46,6 +48,9 @@
 #define CS(x) C(MO(x))
 #define GS(x) G(MO(x))
 
+#define B_MODMIN B_TOGGLE
+#define B_MODMAX B_MODSWT
+
 enum {
 	B_CTRL = 8,
 	B_SHIFT,
@@ -55,6 +60,5 @@ enum {
 	B_TOGGLE,
 	B_SWITCH,
 	B_MODSWT,
-	B_MAX
 };
 
