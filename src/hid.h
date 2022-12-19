@@ -1,5 +1,7 @@
 #pragma once
 
+#include "keymat.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -12,4 +14,6 @@ enum {
 };
 
 void hid_init(void);
+void hid_force_release(uint x, uint y);
+void hid_switch_layer_with_key(uint8_t layer, uint x, uint y);
 void hid_task(void);

@@ -2,6 +2,7 @@
 #include "keycode.h"
 #include "keysym.h"
 #include "keysym_de.h"
+#include "hid.h"
 #include "board.h"
 #include "util.h"
 
@@ -25,9 +26,22 @@
 		{ 0x0, 0x0, 0x0, K83, K82, K81 }  \
 	}
 
+/* KEY INDEX LOOKUP:
+ * x0y0    , x1y0    , x2y0    , x3y0    , x4y0    , x5y0    ,
+ * x0y1    , x1y1    , x2y1    , x3y1    , x4y1    , x5y1    ,
+ * x0y2    , x1y2    , x2y2    , x3y2    , x4y2    , x5y2    ,
+ *                               x3y3    , x4y3    , x5y3    ,
+ *
+ * x5y4    , x4y4    , x3y4    , x2y4    , x1y4    , x0y4    ,
+ * x5y5    , x4y5    , x3y5    , x2y5    , x1y5    , x0y5    ,
+ * x5y6    , x4y6    , x3y6    , x2y6    , x1y6    , x0y6    ,
+ * x5y7    , x4y7    , x3y7
+ */
+
+
 #define LAYER_BASE_DE KEYMAP(                                       \
 	KC_ESC  , DE_Q    , DE_W    , DE_F    , DE_P    , DE_B    , \
-	SW(QUIK), DE_A    , DE_R    , DE_S    , DE_T    , DE_G    , \
+	SX(QUSW), DE_A    , DE_R    , DE_S    , DE_T    , DE_G    , \
 	KC_LSFT , DE_Z    , DE_X    , DE_C    , DE_D    , DE_V    , \
 	                              KC_LGUI , KC_LALT , SW(SHRT), \
 	                                                            \
@@ -63,7 +77,7 @@
 
 #define LAYER_SHRT_DE KEYMAP(                                       \
 	_______ , G(KC_1) , G(KC_2) , G(KC_3) , G(KC_4) , G(KC_5) , \
-	_______ , A(KC_1) , A(KC_2) , A(KC_3) , A(KC_4) , A(KC_5) , \
+	CS(BASE), A(KC_1) , A(KC_2) , A(KC_3) , A(KC_4) , A(KC_5) , \
 	_______ ,G(KC_TAB),G(DE_DOT), A(DE_B) , A(DE_F) ,A(KC_SPC), \
 	                              _______ , _______ , _______ , \
 	                                                            \
@@ -122,7 +136,8 @@ enum {
 
 enum {
 	KVM1,
-	KVM2
+	KVM2,
+	QUSW,
 };
 
 const uint32_t keymap_layers_de[][KEY_ROWS][KEY_COLS] = {
@@ -139,3 +154,30 @@ const uint32_t keymap_layers_de_count = ARRLEN(keymap_layers_de);
 
 const uint32_t (*keymap_layers)[KEY_ROWS][KEY_COLS] = keymap_layers_de;
 uint32_t keymap_layers_count = keymap_layers_de_count;
+
+void
+process_user_keypress_new(uint8_t sym, uint x, uint y)
+{
+	switch (sym) {
+	case KVM1:
+		break;
+	case KVM2:
+		break;
+	case QUSW:
+		INFO("Handling quick switch %i", keymat[7][3]);
+		if (keymat[7][3]) {
+			hid_force_release(3, 7);
+			hid_switch_layer_with_key(QUIX, x, y);
+		} else {
+			hid_switch_layer_with_key(QUIK, x, y);
+		}
+		break;
+	}
+
+}
+
+void
+process_user_keyrelease_new(uint8_t sym, uint x, uint y)
+{
+
+}
