@@ -1,7 +1,8 @@
 #include "keymap.h"
-#include "keycode.h"
 #include "keysym.h"
-#include "keysym_de.h"
+#include "keysym/consumer.h"
+#include "keysym/keyboard_de.h"
+#include "keysym/keyboard_us.h"
 #include "hid.h"
 #include "board.h"
 #include "util.h"
@@ -81,8 +82,8 @@
 	_______ ,G(KC_TAB),G(DE_DOT), A(DE_B) , A(DE_F) ,A(KC_SPC), \
 	                              _______ , _______ , _______ , \
 	                                                            \
-	_______ , G(KC_6) , G(KC_7) , G(KC_8) , G(KC_9) , G(KC_0) , \
-	_______ , A(KC_6) , A(KC_7) , A(KC_8) , A(KC_9) , A(KC_0) , \
+	G(KC_6) , G(KC_7) , G(KC_8) , G(KC_9) , G(KC_0) , _______ , \
+	A(KC_6) , A(KC_7) , A(KC_8) , A(KC_9) , A(KC_0) , _______ , \
 	_______ , _______ , _______ , _______ , _______ , _______ , \
 	_______ , _______ , _______                                 \
 )
@@ -117,8 +118,8 @@
 	KC_F1   , KC_F2   , KC_F3   , KC_F4   , KC_F5   , KC_F6   , \
 	                              _______ , _______ , _______ , \
 	                                                            \
-	_______ , KC_VOLD , KC_VOLU , KC_MUTE , _______ , _______ , \
-	_______ , KC_MPRV , KC_MNXT , KC_MPLY , _______ , _______ , \
+	_______ , KS_VOLD , KS_VOLU , KS_MUTE , _______ , _______ , \
+	_______ , KS_MPRV , KS_MNXT , KS_MPLY , _______ , _______ , \
 	KC_F7   , KC_F8   , KC_F9   , KC_F10  , KC_F11  , KC_F12  , \
 	_______ , _______ , _______                                 \
 )
@@ -164,7 +165,6 @@ process_user_keypress_new(uint8_t sym, uint x, uint y)
 	case KVM2:
 		break;
 	case QUSW:
-		INFO("Handling quick switch %i", keymat[7][3]);
 		if (keymat[7][3]) {
 			hid_force_release(3, 7);
 			hid_switch_layer_with_key(QUIX, x, y);

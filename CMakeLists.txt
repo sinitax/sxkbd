@@ -18,6 +18,8 @@ target_sources(${PROJECT} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/hid.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/keysym/consumer.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/keysym/system.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/split.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/ws2812.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/led.c

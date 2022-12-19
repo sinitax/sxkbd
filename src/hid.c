@@ -1,5 +1,11 @@
 #include "hid.h"
-#include "keycode.h"
+
+#include "keysym/consumer.h"
+#include "keysym/system.h"
+#include "hid/keyboard.h"
+#include "hid/consumer.h"
+#include "hid/system.h"
+
 #include "split.h"
 #include "keymat.h"
 #include "keysym.h"
@@ -9,6 +15,7 @@
 #include "bsp/board.h"
 #include "pico/types.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 struct layerkey {
@@ -16,10 +23,31 @@ struct layerkey {
 	uint key;
 };
 
-struct hid_report {
+struct hid_keyboard_report {
 	uint8_t mods;
 	uint8_t codes[6];
-	uint8_t codecnt;
+	uint8_t cnt;
+};
+
+struct hid_mouse_report {
+	uint8_t btns;
+	int8_t x, y;
+	int8_t v, h;
+};
+
+struct hid_consumer_report {
+	uint16_t code;
+};
+
+struct hid_system_report {
+	uint16_t code;
+};
+
+struct hid_gamepad_report {
+	int8_t x, y, z;
+	int8_t rx, ry, rz;
+	uint8_t hat;
+	uint32_t btns;
 };
 
 static uint32_t keysyms[KEY_ROWS][KEY_COLS] = { 0 };
@@ -27,15 +55,27 @@ static uint32_t keysyms[KEY_ROWS][KEY_COLS] = { 0 };
 static struct layerkey active_stack[16] = { 0 };
 static uint active_top = 0;
 
-static struct hid_report hid_report_prev;
-static struct hid_report hid_report;
+static struct hid_keyboard_report keyboard_report_prev = { 0 };
+static struct hid_keyboard_report keyboard_report = { 0 };
 
-static uint8_t active_weak_mods;
-static uint8_t active_mods;
+static struct hid_mouse_report mouse_report_prev = { 0 };
+static struct hid_mouse_report mouse_report = { 0 };
+
+static struct hid_consumer_report consumer_report_prev = { 0 };
+static struct hid_consumer_report consumer_report = { 0 };
+
+static struct hid_system_report system_report_prev = { 0 };
+static struct hid_system_report system_report = { 0 };
+
+static struct hid_gamepad_report gamepad_report_prev = { 0 };
+static struct hid_gamepad_report gamepad_report = { 0 };
+
+static uint8_t active_weak_mods = 0;
+static uint8_t active_mods = 0;
 
 static uint64_t bounce_mat[KEY_ROWS][KEY_COLS] = { 0 };
 
-static bool seen_mat[KEY_ROWS][KEY_COLS];
+static bool seen_mat[KEY_ROWS][KEY_COLS] = { 0 };
 
 static void active_pop(uint layer);
 static void active_push(uint layer, uint key);
@@ -75,13 +115,13 @@ active_push(uint layer, uint key)
 void
 add_keycode(uint8_t keycode)
 {
-	if (hid_report.codecnt >= 6) {
+	if (keyboard_report.cnt >= 6) {
 		WARN("HID report overflow");
 		return;
 	}
 
-	hid_report.codes[hid_report.codecnt] = keycode;
-	hid_report.codecnt++;
+	keyboard_report.codes[keyboard_report.cnt] = keycode;
+	keyboard_report.cnt++;
 }
 
 uint8_t
@@ -141,6 +181,9 @@ handle_keypress_new(uint x, uint y)
 		/* FIXME: two keys pressed at the exact same time with
 		 * different weak modifiers will not be reported correctly */
 		active_weak_mods = parse_modifiers(keysyms[y][x]);
+	} else if (IS_CONSUMER(keysyms[y][x])) {
+		consumer_report.code = keysym_to_consumer(keysyms[y][x]);
+		INFO("CONSUMER KEY %i", consumer_report.code);
 	}
 }
 
@@ -217,47 +260,110 @@ update_report(void)
 bool
 send_keyboard_report(void)
 {
-	hid_report.mods = active_weak_mods | active_mods;
-	if (memcmp(&hid_report, &hid_report_prev, sizeof(hid_report))) {
+	bool sent;
+
+	sent = false;
+	keyboard_report.mods = active_weak_mods | active_mods;
+	if (memcmp(&keyboard_report, &keyboard_report_prev,
+			sizeof(keyboard_report))) {
 		tud_hid_keyboard_report(REPORT_ID_KEYBOARD,
-			hid_report.mods, hid_report.codes);
-		memcpy(&hid_report_prev, &hid_report, sizeof(hid_report));
-		return true;
+			keyboard_report.mods, keyboard_report.codes);
+		memcpy(&keyboard_report_prev, &keyboard_report,
+			sizeof(keyboard_report));
+		sent = true;
 	}
 
-	return false;
+	memset(&keyboard_report, 0, sizeof(keyboard_report));
+	active_mods = 0;
+	memset(seen_mat, 0, sizeof(seen_mat));
+
+	return sent;
 }
 
 bool
-send_mouse_report(bool state)
+send_consumer_report(void)
 {
-	if (state) {
-		tud_hid_mouse_report(REPORT_ID_MOUSE, 0, 10, 10, 0, 0);
+	bool sent;
+
+	INFO("CONSUMER %u", consumer_report.code);
+
+	sent = false;
+	if (memcmp(&consumer_report, &consumer_report_prev,
+			sizeof(consumer_report))) {
+		tud_hid_report(REPORT_ID_CONSUMER,
+			&consumer_report.code, 2);
+		memcpy(&consumer_report_prev, &consumer_report,
+			sizeof(consumer_report));
 		return true;
 	}
 
-	return false;
+	memset(&consumer_report, 0, sizeof(consumer_report));
+
+	return sent;
 }
 
 bool
-send_consumer_control_report(bool state)
+send_system_report(void)
 {
-	static bool cleared = true;
-	uint16_t report;
+	bool sent;
 
-	if (state) {
-		report = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
-		tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &report, 2);
-		cleared = false;
-		return true;
-	} else if (!cleared) {
-		report = 0;
-		tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &report, 2);
-		cleared = true;
-		return true;
+	sent = false;
+	if (memcmp(&system_report, &system_report_prev,
+			sizeof(system_report))) {
+		tud_hid_report(REPORT_ID_SYSTEM,
+			&system_report.code, 2);
+		memcpy(&system_report_prev, &system_report,
+			sizeof(system_report));
+		sent = true;
 	}
 
-	return false;
+	memset(&system_report, 0, sizeof(system_report));
+
+	return sent;
+}
+
+bool
+send_mouse_report(void)
+{
+	bool sent;
+
+	sent = false;
+	if (memcmp(&mouse_report, &mouse_report_prev,
+			sizeof(mouse_report))) {
+		tud_hid_mouse_report(REPORT_ID_KEYBOARD,
+			mouse_report.btns,
+			mouse_report.x, mouse_report.y,
+			mouse_report.h, mouse_report.v);
+		memcpy(&mouse_report_prev, &mouse_report,
+			sizeof(mouse_report));
+		sent = true;
+	}
+
+	memset(&mouse_report, 0, sizeof(mouse_report));
+
+	return sent;
+}
+
+bool
+send_gamepad_report(void)
+{
+	bool sent;
+
+	sent = false;
+	if (memcmp(&gamepad_report, &gamepad_report_prev,
+			sizeof(gamepad_report))) {
+		tud_hid_gamepad_report(REPORT_ID_GAMEPAD,
+			gamepad_report.x, gamepad_report.y, gamepad_report.z,
+			gamepad_report.rz, gamepad_report.rx, gamepad_report.ry,
+			gamepad_report.hat, gamepad_report.btns);
+		memcpy(&gamepad_report_prev, &gamepad_report,
+			sizeof(gamepad_report));
+		sent = true;
+	}
+
+	memset(&gamepad_report, 0, sizeof(gamepad_report));
+
+	return sent;
 }
 
 bool
@@ -266,25 +372,35 @@ send_hid_report(int id)
 	switch (id) {
 	case REPORT_ID_KEYBOARD:
 		return send_keyboard_report();
+	case REPORT_ID_CONSUMER:
+		return send_consumer_report();
+	case REPORT_ID_SYSTEM:
+		return send_system_report();
 	case REPORT_ID_MOUSE:
-		return send_mouse_report(false);
-	case REPORT_ID_CONSUMER_CONTROL:
-		return send_consumer_control_report(false);
+		return send_mouse_report();
+	case REPORT_ID_GAMEPAD:
+		return send_gamepad_report();
 	}
 
 	return false;
 }
 
 void
-tud_hid_report_complete_cb(uint8_t instance,
-	uint8_t const *report, uint8_t len)
+send_next_hid_report(uint8_t min)
 {
 	uint8_t id;
 
-	for (id = report[0] + 1; id < REPORT_ID_MAX; id++) {
+	for (id = min; id < REPORT_ID_MAX; id++) {
 		if (send_hid_report(id))
 			break;
 	}
+}
+
+void
+tud_hid_report_complete_cb(uint8_t instance,
+	uint8_t const *report, uint8_t len)
+{
+	send_next_hid_report(report[0] + 1);
 }
 
 void
@@ -311,10 +427,6 @@ void
 hid_task(void)
 {
 	update_report();
-	if (tud_hid_ready()) {
-		send_hid_report(REPORT_ID_MIN);
-		memset(&hid_report, 0, sizeof(hid_report));
-		memset(seen_mat, 0, sizeof(seen_mat));
-		active_mods = 0;
-	}
+	if (tud_hid_ready())
+		send_next_hid_report(REPORT_ID_MIN);
 }

@@ -13,36 +13,8 @@
 #define IS_KEY_KC(code) (KC_A <= (code) && (code) <= KC_EXSEL)
 #define IS_MOD_KC(code) (KC_LEFT_CTRL <= (code) && (code) <= KC_RIGHT_GUI)
 
-#define IS_SPECIAL_KC(code) ((0xA5 <= (code) && (code) <= 0xDF) || (0xE8 <= (code) && (code) <= 0xFF))
-#define IS_SYSTEM_KC(code) (KC_PWR <= (code) && (code) <= KC_WAKE)
-#define IS_CONSUMER_KC(code) (KC_MUTE <= (code) && (code) <= KC_BRID)
-
-#define IS_MOUSEKEY(code) (KC_MS_UP <= (code) && (code) <= KC_MS_ACCEL2)
-#define IS_MOUSEKEY_MOVE(code) (KC_MS_UP <= (code) && (code) <= KC_MS_RIGHT)
-#define IS_MOUSEKEY_BUTTON(code) (KC_MS_BTN1 <= (code) && (code) <= KC_MS_BTN8)
-#define IS_MOUSEKEY_WHEEL(code) (KC_MS_WH_UP <= (code) && (code) <= KC_MS_WH_RIGHT)
-#define IS_MOUSEKEY_ACCEL(code) (KC_MS_ACCEL0 <= (code) && (code) <= KC_MS_ACCEL2)
-
-#define MOD_BIT(code) (1 << MOD_INDEX(code))
 #define MOD_INDEX(code) ((code) & 0b111)
-
-#define MOD_MASK_CTRL (MOD_BIT(KC_LEFT_CTRL) | MOD_BIT(KC_RIGHT_CTRL))
-#define MOD_MASK_SHIFT (MOD_BIT(KC_LEFT_SHIFT) | MOD_BIT(KC_RIGHT_SHIFT))
-#define MOD_MASK_ALT (MOD_BIT(KC_LEFT_ALT) | MOD_BIT(KC_RIGHT_ALT))
-#define MOD_MASK_GUI (MOD_BIT(KC_LEFT_GUI) | MOD_BIT(KC_RIGHT_GUI))
-#define MOD_MASK_CS (MOD_MASK_CTRL | MOD_MASK_SHIFT)
-#define MOD_MASK_CA (MOD_MASK_CTRL | MOD_MASK_ALT)
-#define MOD_MASK_CG (MOD_MASK_CTRL | MOD_MASK_GUI)
-#define MOD_MASK_SA (MOD_MASK_SHIFT | MOD_MASK_ALT)
-#define MOD_MASK_SG (MOD_MASK_SHIFT | MOD_MASK_GUI)
-#define MOD_MASK_AG (MOD_MASK_ALT | MOD_MASK_GUI)
-#define MOD_MASK_CSA (MOD_MASK_CTRL | MOD_MASK_SHIFT | MOD_MASK_ALT)
-#define MOD_MASK_CSG (MOD_MASK_CTRL | MOD_MASK_SHIFT | MOD_MASK_GUI)
-#define MOD_MASK_CAG (MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_GUI)
-#define MOD_MASK_SAG (MOD_MASK_SHIFT | MOD_MASK_ALT | MOD_MASK_GUI)
-#define MOD_MASK_CSAG (MOD_MASK_CTRL | MOD_MASK_SHIFT | MOD_MASK_ALT | MOD_MASK_GUI)
-
-/* Short names for ease of definition of keymap */
+#define MOD_BIT(code) (1 << MOD_INDEX(code))
 
 /* Transparent */
 #define KC_TRANSPARENT 0x01
@@ -156,62 +128,8 @@
 #define KC_RCMD KC_RIGHT_GUI
 #define KC_RWIN KC_RIGHT_GUI
 
-/* Generic Desktop Page (0x01) */
-#define KC_PWR  KC_SYSTEM_POWER
-#define KC_SLEP KC_SYSTEM_SLEEP
-#define KC_WAKE KC_SYSTEM_WAKE
-
-/* Consumer Page (0x0C) */
-#define KC_MUTE KC_AUDIO_MUTE
-#define KC_VOLU KC_AUDIO_VOL_UP
-#define KC_VOLD KC_AUDIO_VOL_DOWN
-#define KC_MNXT KC_MEDIA_NEXT_TRACK
-#define KC_MPRV KC_MEDIA_PREV_TRACK
-#define KC_MSTP KC_MEDIA_STOP
-#define KC_MPLY KC_MEDIA_PLAY_PAUSE
-#define KC_MSEL KC_MEDIA_SELECT
-#define KC_EJCT KC_MEDIA_EJECT
-#define KC_CALC KC_CALCULATOR
-#define KC_MYCM KC_MY_COMPUTER
-#define KC_WSCH KC_WWW_SEARCH
-#define KC_WHOM KC_WWW_HOME
-#define KC_WBAK KC_WWW_BACK
-#define KC_WFWD KC_WWW_FORWARD
-#define KC_WSTP KC_WWW_STOP
-#define KC_WREF KC_WWW_REFRESH
-#define KC_WFAV KC_WWW_FAVORITES
-#define KC_MFFD KC_MEDIA_FAST_FORWARD
-#define KC_MRWD KC_MEDIA_REWIND
-#define KC_BRIU KC_BRIGHTNESS_UP
-#define KC_BRID KC_BRIGHTNESS_DOWN
-
-/* System Specific */
-#define KC_BRMU KC_PAUSE
-#define KC_BRMD KC_SCROLL_LOCK
-
-/* Mouse Keys */
-#define KC_MS_U KC_MS_UP
-#define KC_MS_D KC_MS_DOWN
-#define KC_MS_L KC_MS_LEFT
-#define KC_MS_R KC_MS_RIGHT
-#define KC_BTN1 KC_MS_BTN1
-#define KC_BTN2 KC_MS_BTN2
-#define KC_BTN3 KC_MS_BTN3
-#define KC_BTN4 KC_MS_BTN4
-#define KC_BTN5 KC_MS_BTN5
-#define KC_BTN6 KC_MS_BTN6
-#define KC_BTN7 KC_MS_BTN7
-#define KC_BTN8 KC_MS_BTN8
-#define KC_WH_U KC_MS_WH_UP
-#define KC_WH_D KC_MS_WH_DOWN
-#define KC_WH_L KC_MS_WH_LEFT
-#define KC_WH_R KC_MS_WH_RIGHT
-#define KC_ACL0 KC_MS_ACCEL0
-#define KC_ACL1 KC_MS_ACCEL1
-#define KC_ACL2 KC_MS_ACCEL2
-
 /* Keyboard/Keypad Page (0x07) */
-enum hid_keyboard_keypad_usage {
+enum hid_keyboard {
 	KC_NO = 0x00,
 	KC_ROLL_OVER,
 	KC_POST_FAIL,
@@ -439,77 +357,4 @@ enum hid_keyboard_keypad_usage {
 	KC_RIGHT_SHIFT,
 	KC_RIGHT_ALT,
 	KC_RIGHT_GUI
-
-	/* Range 0xF0-0xFF is unallocated in the HID spec */
 };
-
-/* Media and Function keys */
-enum internal_special_keycodes {
-	/* Generic Desktop Page (0x01) */
-	KC_SYSTEM_POWER = 0xA5,
-	KC_SYSTEM_SLEEP,
-	KC_SYSTEM_WAKE,
-
-	/* Consumer Page (0x0C) */
-	KC_AUDIO_MUTE,
-	KC_AUDIO_VOL_UP,
-	KC_AUDIO_VOL_DOWN,
-	KC_MEDIA_NEXT_TRACK,
-	KC_MEDIA_PREV_TRACK,
-	KC_MEDIA_STOP,
-	KC_MEDIA_PLAY_PAUSE,
-	KC_MEDIA_SELECT,
-	KC_MEDIA_EJECT, // 0xB0
-	KC_MAIL,
-	KC_CALCULATOR,
-	KC_MY_COMPUTER,
-	KC_WWW_SEARCH,
-	KC_WWW_HOME,
-	KC_WWW_BACK,
-	KC_WWW_FORWARD,
-	KC_WWW_STOP,
-	KC_WWW_REFRESH,
-	KC_WWW_FAVORITES,
-	KC_MEDIA_FAST_FORWARD,
-	KC_MEDIA_REWIND,
-	KC_BRIGHTNESS_UP,
-	KC_BRIGHTNESS_DOWN
-};
-
-/* Mouse Buttons */
-enum mouse_keys {
-#ifdef VIA_ENABLE
-	KC_MS_UP = 0xF0,
-#else
-	KC_MS_UP = 0xED,
-#endif
-	KC_MS_DOWN,
-	KC_MS_LEFT,
-	KC_MS_RIGHT, // 0xF0
-	KC_MS_BTN1,
-	KC_MS_BTN2,
-	KC_MS_BTN3,
-	KC_MS_BTN4,
-	KC_MS_BTN5,
-#ifdef VIA_ENABLE
-	KC_MS_BTN6 = KC_MS_BTN5,
-	KC_MS_BTN7 = KC_MS_BTN5,
-	KC_MS_BTN8 = KC_MS_BTN5,
-#else
-	KC_MS_BTN6,
-	KC_MS_BTN7,
-	KC_MS_BTN8,
-#endif
-
-	/* Mouse Wheel */
-	KC_MS_WH_UP,
-	KC_MS_WH_DOWN,
-	KC_MS_WH_LEFT,
-	KC_MS_WH_RIGHT,
-
-	/* Acceleration */
-	KC_MS_ACCEL0,
-	KC_MS_ACCEL1,
-	KC_MS_ACCEL2 // 0xFF
-};
-

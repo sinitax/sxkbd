@@ -1,7 +1,7 @@
 #pragma once
 
 #include "keysym.h"
-#include "keycode.h"
+#include "hid/keyboard.h"
 
 /*
  * ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───────┐
