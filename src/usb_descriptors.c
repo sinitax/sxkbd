@@ -8,11 +8,11 @@
 
 /* same VID/PID with different interface can cause issues! */
 
-#define _PID_MAP(itf, n) ((CFG_TUD_##itf) << (n))
+#define _PID_MAP(itf, n) ((CFG_TUD_##itf) << (2 * (n)))
 #define USB_PID (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) \
 	 | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4))
 
-#define USB_VID 0xC0FF
+#define USB_VID 0x1523
 #define USB_BCD 0x0200
 
 #define CONFIG_TOTAL_LEN \
@@ -27,7 +27,7 @@
 enum {
 	ITF_NUM_CDC,
 	ITF_NUM_CDC_DATA,
-	ITF_NUM_HID,
+	ITF_NUM_HID_KBD,
 	ITF_NUM_TOTAL
 };
 
@@ -53,8 +53,11 @@ tusb_desc_device_t const desc_device = {
 	.bNumConfigurations = 0x01
 };
 
-uint8_t const desc_hid_report[] = {
-	TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_ID_KEYBOARD)),
+uint8_t const desc_hid_kbd_report[] = {
+	TUD_HID_REPORT_DESC_KEYBOARD()
+};
+
+uint8_t const desc_hid_misc_report[] = {
 	TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(REPORT_ID_MOUSE)),
 	TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(REPORT_ID_CONSUMER)),
 	TUD_HID_REPORT_DESC_SYSTEM_CONTROL(HID_REPORT_ID(REPORT_ID_SYSTEM)),
@@ -74,8 +77,8 @@ uint8_t const desc_fs_configuration[] = {
 
 	/* Interface number, string index, protocol, report descriptor len,
 	 * EP In address, size & polling interval */
-	TUD_HID_DESCRIPTOR(ITF_NUM_HID, 5, HID_ITF_PROTOCOL_NONE,
-		sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 1)
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 0, HID_ITF_PROTOCOL_KEYBOARD,
+		sizeof(desc_hid_kbd_report), EPNUM_HID, 8, 1)
 };
 
 #if TUD_OPT_HIGH_SPEED
@@ -92,8 +95,8 @@ uint8_t const desc_hs_configuration[] = {
 
 	/* Interface number, string index, protocol, report descriptor len,
 	 * EP In address, size & polling interval */
-	TUD_HID_DESCRIPTOR(ITF_NUM_HID, 5, HID_ITF_PROTOCOL_NONE,
-		sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 1)
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 0, HID_ITF_PROTOCOL_KEYBOARD,
+		sizeof(desc_hid_kbd_report), EPNUM_HID, 8, 1)
 };
 
 uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
@@ -115,12 +118,11 @@ tusb_desc_device_qualifier_t const desc_device_qualifier =
 #endif
 
 char const *string_desc_arr[] = {
-	[0] = "\x09\x04\x09\x00", /* bCountryCode: Germany */
+	[0] = "\x07\x04",         /* LangID: German (0x0407) */
 	[1] = "TinyUSB",          /* Manufacturer */
 	[2] = "TinyUSB Device",   /* Product */
 	[3] = "123456",           /* Serials, should use chip ID */
 	[4] = "SXKBD CDC",
-	[5] = "SXKBD HID"
 };
 
 static uint16_t _desc_str[32];
@@ -137,7 +139,7 @@ uint8_t const *
 tud_hid_descriptor_report_cb(uint8_t itf)
 {
 	(void) itf;
-	return desc_hid_report;
+	return desc_hid_kbd_report;
 }
 
 /* Invoked on GET CONFIGURATION DESCRIPTOR */
@@ -164,8 +166,8 @@ tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 	(void) langid;
 
 	if (index == 0) {
-		memcpy(&_desc_str[1], string_desc_arr[0], 4);
-		chr_count = 2;
+		memcpy(&_desc_str[1], string_desc_arr[0], 2);
+		chr_count = 1;
 	} else {
 		if (index >= ARRLEN(string_desc_arr))
 			return NULL;

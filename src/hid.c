@@ -367,7 +367,7 @@ send_keyboard_report(void)
 
 	if (memcmp(&keyboard_report, &keyboard_report_prev,
 			sizeof(keyboard_report))) {
-		tud_hid_keyboard_report(REPORT_ID_KEYBOARD,
+		tud_hid_n_keyboard_report(INST_HID_KBD, REPORT_ID_NONE,
 			keyboard_report.mods, keyboard_report.codes);
 		memcpy(&keyboard_report_prev, &keyboard_report,
 			sizeof(keyboard_report));
@@ -431,8 +431,7 @@ send_mouse_report(void)
 	sent = false;
 	if (memcmp(&mouse_report, &mouse_report_prev,
 			sizeof(mouse_report))) {
-		tud_hid_mouse_report(REPORT_ID_KEYBOARD,
-			mouse_report.btns,
+		tud_hid_mouse_report(REPORT_ID_NONE, mouse_report.btns,
 			mouse_report.x, mouse_report.y,
 			mouse_report.h, mouse_report.v);
 		memcpy(&mouse_report_prev, &mouse_report,
@@ -471,8 +470,6 @@ bool
 send_hid_report(int id)
 {
 	switch (id) {
-	case REPORT_ID_KEYBOARD:
-		return send_keyboard_report();
 	case REPORT_ID_CONSUMER:
 		return send_consumer_report();
 	case REPORT_ID_SYSTEM:
@@ -582,13 +579,13 @@ hid_send_macro(const uint32_t *keysyms, uint cnt)
 			process_keydown(keysyms[i], mx, my);
 		}
 
-		while (!tud_hid_ready())
+		while (!tud_hid_n_ready(INST_HID_KBD))
 			tud_task();
 		send_next_hid_report(REPORT_ID_MIN);
 
 		if (IS_MACRO_PRESS(keysyms[i])) {
 			memcpy(&keyboard_report, &tmp, sizeof(keyboard_report));
-			while (!tud_hid_ready())
+			while (!tud_hid_n_ready(INST_HID_KBD))
 				tud_task();
 			send_next_hid_report(REPORT_ID_MIN);
 		}
@@ -596,7 +593,7 @@ hid_send_macro(const uint32_t *keysyms, uint cnt)
 
 	memset(&keyboard_report, 0, sizeof(keyboard_report));
 	send_next_hid_report(REPORT_ID_MIN);
-	while (!tud_hid_ready())
+	while (!tud_hid_n_ready(INST_HID_KBD))
 		tud_task();
 
 	macro_running = false;
@@ -606,7 +603,7 @@ void
 hid_task(void)
 {
 	update_report();
-	if (tud_hid_ready())
-		send_next_hid_report(REPORT_ID_MIN);
+	if (tud_hid_n_ready(INST_HID_KBD))
+		send_keyboard_report();
 }
 
