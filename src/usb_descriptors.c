@@ -93,7 +93,7 @@ uint8_t const desc_hs_configuration[] = {
 	/* Interface number, string index, protocol, report descriptor len,
 	 * EP In address, size & polling interval */
 	TUD_HID_DESCRIPTOR(ITF_NUM_HID, 5, HID_ITF_PROTOCOL_NONE,
-		sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5)
+		sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 1)
 };
 
 uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
@@ -104,9 +104,9 @@ tusb_desc_device_qualifier_t const desc_device_qualifier =
 	.bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
 	.bcdUSB             = USB_BCD,
 
-	.bDeviceClass       = TUSB_CLASS_MISC,
-	.bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-	.bDeviceProtocol    = MISC_PROTOCOL_IAD,
+	.bDeviceClass       = 0x00,
+	.bDeviceSubClass    = 0x00,
+	.bDeviceProtocol    = 0x00,
 
 	.bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 	.bNumConfigurations = 0x01,

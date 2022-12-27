@@ -1,4 +1,5 @@
 #include "keymap.h"
+#include "hid/keyboard.h"
 #include "keysym.h"
 #include "keysym/consumer.h"
 #include "keysym/keyboard_de.h"
@@ -79,7 +80,7 @@
 #define LAYER_SHRT_DE KEYMAP(                                       \
 	_______ , G(KC_1) , G(KC_2) , G(KC_3) , G(KC_4) , G(KC_5) , \
 	CS(BASE), A(KC_1) , A(KC_2) , A(KC_3) , A(KC_4) , A(KC_5) , \
-	_______ ,G(KC_TAB),G(DE_DOT), A(DE_B) , A(DE_F) ,A(KC_SPC), \
+	_______ ,G(KC_TAB),G(DE_DOT), A(DE_B) , A(DE_F) , KC_SPC  , \
 	                              _______ , _______ , _______ , \
 	                                                            \
 	G(KC_6) , G(KC_7) , G(KC_8) , G(KC_9) , G(KC_0) , _______ , \
@@ -116,12 +117,36 @@
 	_______ , SX(KVM1), SX(KVM2), _______ , _______ , _______ , \
 	_______ , _______ , _______ , _______ , _______ , _______ , \
 	KC_F1   , KC_F2   , KC_F3   , KC_F4   , KC_F5   , KC_F6   , \
-	                              _______ , _______ , _______ , \
+	                              RB(BASE), _______ , RB(GAME), \
 	                                                            \
 	_______ , KS_VOLD , KS_VOLU , KS_MUTE , _______ , _______ , \
 	_______ , KS_MPRV , KS_MNXT , KS_MPLY , _______ , _______ , \
 	KC_F7   , KC_F8   , KC_F9   , KC_F10  , KC_F11  , KC_F12  , \
 	_______ , _______ , _______                                 \
+)
+
+#define LAYER_GAME_DE KEYMAP(                                       \
+	KC_ESC  , DE_Q    , DE_W    , DE_E    , DE_R    , DE_T    , \
+	SW(GNUM), DE_A    , DE_S    , DE_D    , DE_F    , DE_G    , \
+	KC_LCTL , DE_Z    , DE_X    , DE_C    , DE_V    , DE_B    , \
+	                              KC_LSFT , KC_LALT , KC_SPC  , \
+	                                                            \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX                                 \
+)
+
+#define LAYER_GNUM_DE KEYMAP(                                       \
+	SW(META), KC_1    , KC_2    , KC_3    , KC_4    , KC_5    , \
+	XXXXXXX , KC_6    , KC_7    , KC_8    , KC_9    , KC_0    , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	                              XXXXXXX , KC_TAB  , XXXXXXX , \
+	                                                            \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX                                 \
 )
 
 enum {
@@ -133,6 +158,8 @@ enum {
 	NUMS, /* numbers */
 	SPEC, /* specials */
 	META, /* functions */
+	GAME, /* gaming base */
+	GNUM, /* gaming nums */
 };
 
 enum {
@@ -148,7 +175,9 @@ const uint32_t keymap_layers_de[][KEY_ROWS][KEY_COLS] = {
 	[SHRT] = LAYER_SHRT_DE,
 	[NUMS] = LAYER_NUMS_DE,
 	[SPEC] = LAYER_SPEC_DE,
-	[META] = LAYER_META_DE
+	[META] = LAYER_META_DE,
+	[GAME] = LAYER_GAME_DE,
+	[GNUM] = LAYER_GNUM_DE
 
 };
 const uint32_t keymap_layers_de_count = ARRLEN(keymap_layers_de);
@@ -156,13 +185,27 @@ const uint32_t keymap_layers_de_count = ARRLEN(keymap_layers_de);
 const uint32_t (*keymap_layers)[KEY_ROWS][KEY_COLS] = keymap_layers_de;
 uint32_t keymap_layers_count = keymap_layers_de_count;
 
+const uint32_t macro_kvm1[] = {
+	KC_LEFT_CTRL, DELAY(100),
+	KC_LEFT_CTRL, DELAY(100),
+	KC_1
+};
+
+const uint32_t macro_kvm2[] = {
+	KC_LEFT_CTRL, DELAY(100),
+	KC_LEFT_CTRL, DELAY(100),
+	KC_2
+};
+
 void
-process_user_keypress_new(uint8_t sym, uint x, uint y)
+process_user_keypress(uint8_t sym, uint x, uint y)
 {
 	switch (sym) {
 	case KVM1:
+		hid_send_macro(macro_kvm1, ARRLEN(macro_kvm1));
 		break;
 	case KVM2:
+		hid_send_macro(macro_kvm2, ARRLEN(macro_kvm2));
 		break;
 	case QUSW:
 		if (keymat[7][3]) {
@@ -177,7 +220,7 @@ process_user_keypress_new(uint8_t sym, uint x, uint y)
 }
 
 void
-process_user_keyrelease_new(uint8_t sym, uint x, uint y)
+process_user_keyrelease(uint8_t sym, uint x, uint y)
 {
 
 }

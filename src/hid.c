@@ -52,8 +52,8 @@ struct hid_gamepad_report {
 
 static uint32_t keysyms[KEY_ROWS][KEY_COLS] = { 0 };
 
-static struct layerkey active_stack[16] = { 0 };
-static uint active_top = 0;
+static struct layerkey active_layers[16] = { 0 };
+static uint active_layers_top = 0;
 
 static struct hid_keyboard_report keyboard_report_prev = { 0 };
 static struct hid_keyboard_report keyboard_report = { 0 };
@@ -77,39 +77,117 @@ static uint64_t bounce_mat[KEY_ROWS][KEY_COLS] = { 0 };
 
 static bool seen_mat[KEY_ROWS][KEY_COLS] = { 0 };
 
-static void active_pop(uint layer);
-static void active_push(uint layer, uint key);
+static uint32_t macro_held_stack[MACRO_HOLD_MAX] = { 0 };
+static uint macro_held_cnt = 0;
+
+static bool macro_running = false;
+
+/* TODO replace these two with stack method primitives (added to util) */
+
+static void active_layers_reset(void);
+static void active_layers_pop(uint layer);
+static void active_layers_push(uint layer, uint key);
+
+static void macro_held_reset(void);
+static void macro_held_pop(uint32_t keysym);
+static void macro_held_push(uint32_t keysym);
+static bool macro_held_find(uint32_t keysym);
+
 static void add_keycode(uint8_t keycode);
 
 void
-active_pop(uint layer)
+active_layers_reset(void)
+{
+	active_layers_top = 0;
+}
+
+bool
+active_layers_find(uint layer)
 {
 	uint i;
 
-	for (i = layer + 1; i <= active_top; i++)
-		active_stack[i-1] = active_stack[i];
-	if (layer <= active_top)
-		active_top--;
+	for (i = 0; i <= active_layers_top; i++) {
+		if (active_layers[i].layer == layer)
+			return true;
+	}
+
+	return false;
 }
 
 void
-active_push(uint layer, uint key)
+active_layers_pop(uint layer)
 {
 	uint i;
 
-	if (active_top == ARRLEN(active_stack) - 1) {
+	for (i = layer + 1; i <= active_layers_top; i++)
+		active_layers[i-1] = active_layers[i];
+	if (layer <= active_layers_top)
+		active_layers_top--;
+}
+
+void
+active_layers_push(uint layer, uint key)
+{
+	uint i;
+
+	if (active_layers_top == ARRLEN(active_layers) - 1) {
 		WARN("Active stack overflow");
 		return;
 	}
 
-	active_top += 1;
-	active_stack[active_top].layer = layer;
-	active_stack[active_top].key = key;
+	active_layers_top += 1;
+	active_layers[active_layers_top].layer = layer;
+	active_layers[active_layers_top].key = key;
 
-	for (i = 0; i <= active_top; i++) {
+	for (i = 0; i <= active_layers_top; i++) {
 		INFO("%i. ACTIVE %u %u", i,
-			active_stack[i].layer, active_stack[i].key);
+			active_layers[i].layer, active_layers[i].key);
 	}
+}
+
+void
+macro_held_reset(void)
+{
+	macro_held_cnt = 0;
+}
+
+void
+macro_held_pop(uint32_t keysym)
+{
+	uint i, cnt;
+
+	for (i = cnt = 0; i < macro_held_cnt; i++) {
+		if (macro_held_stack[i] != keysym) {
+			macro_held_stack[cnt] = macro_held_stack[i];
+			cnt++;
+		}
+	}
+	macro_held_cnt = cnt;
+}
+
+void
+macro_held_push(uint32_t keysym)
+{
+	if (macro_held_cnt == MACRO_HOLD_MAX) {
+		WARN("Macro help keys overflow");
+		return;
+	}
+
+	macro_held_stack[macro_held_cnt] = keysym;
+	macro_held_cnt++;
+}
+
+bool
+macro_held_find(uint32_t keysym)
+{
+	uint i;
+
+	for (i = 0; i < macro_held_cnt; i++) {
+		if (macro_held_stack[i] == keysym)
+			return true;
+	}
+
+	return false;
 }
 
 void
@@ -158,75 +236,107 @@ parse_modifiers(uint32_t keysym)
 	return mods;
 }
 
-void
-handle_keypress_new(uint x, uint y)
+uint32_t
+determine_keysym(uint x, uint y)
 {
-	uint32_t ksym;
+	uint32_t keysym;
 	int i;
 
-	for (i = (int) active_top; i >= 0; i--) {
-		ksym = keymap_layers[active_stack[i].layer][y][x];
-		if (ksym == KC_NO) return;
-		if (ksym != KC_TRNS)
+	keysym = KC_NO;
+	for (i = (int) active_layers_top; i >= 0; i--) {
+		keysym = keymap_layers[active_layers[i].layer][y][x];
+		if (keysym != KC_TRNS && keysym != KC_NO)
 			break;
 	}
-	if (i < 0) return;
-	keysyms[y][x] = ksym;
 
-	if (IS_SWITCH(keysyms[y][x])) {
-		active_push(TO_LAYER(keysyms[y][x]), y * KEY_COLS + x);
-	} else if (IS_USER(keysyms[y][x])) {
-		process_user_keypress_new(TO_SYM(keysyms[y][x]), x, y);
-	} else if (IS_KC(keysyms[y][x]) && IS_KEY_KC(TO_KC(keysyms[y][x]))) {
+	return keysym;
+}
+
+void
+process_keypress(uint32_t keysym, uint x, uint y)
+{
+	if (IS_SWITCH(keysym)) {
+		active_layers_push(TO_LAYER(keysym), y * KEY_COLS + x);
+	} else if (IS_TOGGLE(keysym)) {
+		if (active_layers_find(TO_LAYER(keysym)))
+			active_layers_pop(TO_LAYER(keysym));
+		else
+			active_layers_push(TO_LAYER(keysym), y * KEY_COLS + x);
+	} else if (IS_REBASE(keysym)) {
+		active_layers_reset();
+		active_layers[0].layer = TO_LAYER(keysym);
+	} else if (IS_USER(keysym)) {
+		process_user_keypress(TO_SYM(keysym), x, y);
+	} else if (IS_KC(keysym) && IS_KEY_KC(TO_KC(keysym))) {
 		/* FIXME: two keys pressed at the exact same time with
 		 * different weak modifiers will not be reported correctly */
-		active_weak_mods = parse_modifiers(keysyms[y][x]);
-	} else if (IS_CONSUMER(keysyms[y][x])) {
-		consumer_report.code = keysym_to_consumer(keysyms[y][x]);
-		INFO("CONSUMER KEY %i", consumer_report.code);
+		active_weak_mods = parse_modifiers(keysym);
+	} else if (IS_CONSUMER(keysym)) {
+		consumer_report.code = keysym_to_consumer(keysym);
 	}
 }
 
 void
-handle_keypress(uint x, uint y)
+process_keydown(uint32_t keysym, uint x, uint y)
 {
-	if (!keymat_prev[y][x])
-		handle_keypress_new(x, y);
-
 	if (seen_mat[y][x]) return;
 	seen_mat[y][x] = true;
 
-	if (IS_KC(keysyms[y][x]) && IS_KEY_KC(TO_KC(keysyms[y][x]))) {
-		add_keycode(TO_KC(keysyms[y][x]));
-		INFO("CODE %u %u", active_top, keysyms[y][x]);
-	} else if (IS_KC(keysyms[y][x]) && IS_MOD_KC(TO_KC(keysyms[y][x]))) {
-		active_mods |= MOD_BIT(TO_KC(keysyms[y][x]));
-	} else if (IS_MOD(keysyms[y][x])) {
-		active_mods |= parse_modifiers(keysyms[y][x]);
+	if (IS_KC(keysym) && IS_KEY_KC(TO_KC(keysym))) {
+		add_keycode(TO_KC(keysym));
+	} else if (IS_KC(keysym) && IS_MOD_KC(TO_KC(keysym))) {
+		active_mods |= MOD_BIT(TO_KC(keysym));
+	} else if (IS_MOD(keysym)) {
+		active_mods |= parse_modifiers(keysym);
 	}
 }
 
 void
-handle_keyrelease_new(uint x, uint y)
+process_keyrelease(uint32_t keysym, uint x, uint y)
 {
 	uint i;
 
-	if (IS_USER(keysyms[y][x]))
-		process_user_keyrelease_new(TO_SYM(keysyms[y][x]), x, y);
+	if (IS_USER(keysym))
+		process_user_keyrelease(TO_SYM(keysym), x, y);
 
-	for (i = 1; i <= active_top; i++) {
-		if (active_stack[i].key == y * KEY_COLS + x) {
-			active_pop(i);
+	for (i = 1; i <= active_layers_top; i++) {
+		if (active_layers[i].key == y * KEY_COLS + x) {
+			active_layers_pop(i);
 			break;
 		}
 	}
 }
 
 void
-handle_keyrelease(uint x, uint y)
+process_keyup(uint32_t keysym, uint x, uint y)
 {
-	if (keymat_prev[y][x])
-		handle_keyrelease_new(x, y);
+}
+
+void
+process_key(uint x, uint y, uint64_t now_us)
+{
+	if (keymat[y][x] != keymat_prev[y][x]) {
+		if (bounce_mat[y][x] > now_us - 50000) {
+			DEBUG("Bouncing prevented %i vs %i",
+				keymat[y][x], keymat_prev[y][x]);
+			keymat[y][x] = keymat_prev[y][x];
+		} else {
+			bounce_mat[y][x] = now_us;
+		}
+	}
+
+	if (keymat[y][x] && !keymat_prev[y][x])
+		keysyms[y][x] = determine_keysym(x, y);
+
+	if (keymat[y][x]) {
+		if (!keymat_prev[y][x])
+			process_keypress(keysyms[y][x], x, y);
+		process_keydown(keysyms[y][x], x, y);
+	} else {
+		if (keymat_prev[y][x])
+			process_keyrelease(keysyms[y][x], x, y);
+		process_keyup(keysyms[y][x], x, y);
+	}
 }
 
 void
@@ -238,21 +348,7 @@ update_report(void)
 	now_us = time_us_64();
 	for (y = 0; y < KEY_ROWS; y++) {
 		for (x = 0; x < KEY_COLS; x++) {
-			if (keymat[y][x] != keymat_prev[y][x]) {
-				if (bounce_mat[y][x] > now_us - 50000) {
-					DEBUG("Bouncing prevented %i vs %i",
-						keymat[y][x], keymat_prev[y][x]);
-					keymat[y][x] = keymat_prev[y][x];
-				} else {
-					bounce_mat[y][x] = now_us;
-				}
-			}
-
-			if (keymat[y][x]) {
-				handle_keypress(x, y);
-			} else {
-				handle_keyrelease(x, y);
-			}
+			process_key(x, y, now_us);
 		}
 	}
 }
@@ -264,6 +360,11 @@ send_keyboard_report(void)
 
 	sent = false;
 	keyboard_report.mods = active_weak_mods | active_mods;
+
+	if (macro_running)
+		INFO("REPORT %u %u", keyboard_report.mods,
+			keyboard_report.codes[0]);
+
 	if (memcmp(&keyboard_report, &keyboard_report_prev,
 			sizeof(keyboard_report))) {
 		tud_hid_keyboard_report(REPORT_ID_KEYBOARD,
@@ -271,6 +372,8 @@ send_keyboard_report(void)
 		memcpy(&keyboard_report_prev, &keyboard_report,
 			sizeof(keyboard_report));
 		sent = true;
+
+		active_weak_mods = 0;
 	}
 
 	memset(&keyboard_report, 0, sizeof(keyboard_report));
@@ -284,8 +387,6 @@ bool
 send_consumer_report(void)
 {
 	bool sent;
-
-	INFO("CONSUMER %u", consumer_report.code);
 
 	sent = false;
 	if (memcmp(&consumer_report, &consumer_report_prev,
@@ -411,16 +512,94 @@ hid_init(void)
 void
 hid_force_release(uint x, uint y)
 {
-	handle_keyrelease_new(x, y);
+	process_keyrelease(keysyms[y][x], x, y);
 	keysyms[y][x] = KC_NO;
 }
 
 void
 hid_switch_layer_with_key(uint8_t layer, uint x, uint y)
 {
-	active_push(layer, y * KEY_COLS + x);
+	active_layers_push(layer, y * KEY_COLS + x);
 	keysyms[y][x] = SW(layer);
 	seen_mat[y][x] = true;
+}
+
+void
+hid_send_macro(const uint32_t *keysyms, uint cnt)
+{
+	/* TODO: replace macro x y with less hacky alternative */
+	static const uint mx = 0, my = 7;
+	struct hid_keyboard_report tmp;
+	uint32_t start_ms;
+	uint i, k;
+
+	/* NOTE: layer switching is not supported for macros (not needed),
+	 * to preserve the current layers we reference a key which is not
+	 * in-use to prevent accidentally unmapping layers on release */
+
+	macro_held_reset();
+
+	active_mods = 0;
+	active_weak_mods = 0;
+	memset(&keyboard_report, 0, sizeof(keyboard_report));
+	memset(&keyboard_report_prev, 0, sizeof(keyboard_report));
+	memset(&seen_mat, 0, sizeof(seen_mat));
+
+	macro_running = true;
+	for (i = 0; i < cnt; i++) {
+		if (IS_MACRO_DELAY(keysyms[i])) {
+			start_ms = board_millis();
+			while (board_millis() - start_ms < TO_DELAY(keysyms[i]))
+				tud_task();
+			continue;
+		}
+
+		memset(&keyboard_report, 0, sizeof(keyboard_report));
+
+		if (IS_MACRO_RELEASE(keysyms[i]))
+			macro_held_pop(keysyms[i]);
+
+		for (k = 0; k < i; k++) {
+			if (macro_held_find(keysyms[k])) {
+				seen_mat[my][mx] = false;
+				process_keydown(keysyms[k], mx, my);
+			}
+		}
+
+		if (IS_MACRO_HOLD(keysyms[i]))
+			macro_held_push(keysyms[i]);
+
+		if (IS_MACRO_PRESS(keysyms[i])) {
+			keyboard_report.mods = active_weak_mods | active_mods;
+			memcpy(&tmp, &keyboard_report, sizeof(keyboard_report));
+		}
+
+		if (IS_MACRO_RELEASE(keysyms[i])) {
+			process_keyrelease(keysyms[i], mx, my);
+			process_keyup(keysyms[i], mx, my);
+		} else {
+			process_keypress(keysyms[i], mx, my);
+			process_keydown(keysyms[i], mx, my);
+		}
+
+		while (!tud_hid_ready())
+			tud_task();
+		send_next_hid_report(REPORT_ID_MIN);
+
+		if (IS_MACRO_PRESS(keysyms[i])) {
+			memcpy(&keyboard_report, &tmp, sizeof(keyboard_report));
+			while (!tud_hid_ready())
+				tud_task();
+			send_next_hid_report(REPORT_ID_MIN);
+		}
+	}
+
+	memset(&keyboard_report, 0, sizeof(keyboard_report));
+	send_next_hid_report(REPORT_ID_MIN);
+	while (!tud_hid_ready())
+		tud_task();
+
+	macro_running = false;
 }
 
 void
@@ -430,3 +609,4 @@ hid_task(void)
 	if (tud_hid_ready())
 		send_next_hid_report(REPORT_ID_MIN);
 }
+
