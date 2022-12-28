@@ -6,15 +6,6 @@
 
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 
-/* same VID/PID with different interface can cause issues! */
-
-#define _PID_MAP(itf, n) ((CFG_TUD_##itf) << (2 * (n)))
-#define USB_PID (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) \
-	 | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4))
-
-#define USB_VID 0x1209
-#define USB_BCD 0xDDDD
-
 #define CONFIG_TOTAL_LEN \
 	(TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + 2 * TUD_HID_DESC_LEN)
 
@@ -24,6 +15,8 @@
 #define EPNUM_CDC_NOTIF  0x84
 #define EPNUM_CDC_IN     0x85
 #define EPNUM_CDC_OUT    0x05
+
+/* NOTE: same VID/PID with different interface can cause issues! */
 
 enum {
 	ITF_NUM_CDC,
@@ -36,7 +29,7 @@ enum {
 static const tusb_desc_device_t desc_device = {
 	.bLength            = sizeof(tusb_desc_device_t),
 	.bDescriptorType    = TUSB_DESC_DEVICE,
-	.bcdUSB             = USB_BCD,
+	.bcdUSB             = 0x200,
 
 	.bDeviceClass       = 0x00,
 	.bDeviceSubClass    = 0x00,
@@ -44,8 +37,8 @@ static const tusb_desc_device_t desc_device = {
 
 	.bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-	.idVendor           = USB_VID,
-	.idProduct          = USB_PID,
+	.idVendor           = 0x1209,
+	.idProduct          = 0xDDDD,
 	.bcdDevice          = 0x0100,
 
 	.iManufacturer      = 0x01,
@@ -111,7 +104,7 @@ static const tusb_desc_device_qualifier_t desc_device_qualifier =
 {
 	.bLength            = sizeof(tusb_desc_device_qualifier_t),
 	.bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
-	.bcdUSB             = USB_BCD,
+	.bcdUSB             = 0x200,
 
 	.bDeviceClass       = 0x00,
 	.bDeviceSubClass    = 0x00,
@@ -128,7 +121,7 @@ static const char *string_desc_arr[] = {
 	[1] = "SNX",            /* Manufacturer */
 	[2] = "SXKBD Keyboard", /* Product */
 	[3] = "000001",         /* Serial Number */
-	[4] = "HID-CDC",
+	[4] = "CDC",
 	[5] = "HID-KBD",
 	[6] = "HID-MISC"
 };
@@ -197,7 +190,7 @@ tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 const uint8_t *
 tud_descriptor_device_qualifier_cb(void)
 {
-	return (const uint8_t*) &desc_device_qualifier;
+	return (const uint8_t *) &desc_device_qualifier;
 }
 
 const uint8_t *

@@ -16,7 +16,7 @@ SPLIT_ROLE = $(shell echo "$(ROLE)" | tr a-z A-Z)
 CMAKE_FLAGS += -DSPLIT_ROLE=$(SPLIT_ROLE)
 endif
 
-all: left right
+all: build flash
 
 clean:
 	rm -rf .build
