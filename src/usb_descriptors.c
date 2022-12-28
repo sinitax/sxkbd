@@ -12,26 +12,28 @@
 #define USB_PID (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) \
 	 | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4))
 
-#define USB_VID 0x1523
-#define USB_BCD 0x0200
+#define USB_VID 0x1209
+#define USB_BCD 0xDDDD
 
 #define CONFIG_TOTAL_LEN \
-	(TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN)
+	(TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + 2 * TUD_HID_DESC_LEN)
 
 /* MCU-specific! */
-#define EPNUM_CDC_NOTIF   0x81
-#define EPNUM_CDC_OUT     0x02
-#define EPNUM_CDC_IN      0x82
-#define EPNUM_HID         0x83
+#define EPNUM_HID_KBD    0x81
+#define EPNUM_HID_MISC   0x82
+#define EPNUM_CDC_NOTIF  0x84
+#define EPNUM_CDC_IN     0x85
+#define EPNUM_CDC_OUT    0x05
 
 enum {
 	ITF_NUM_CDC,
 	ITF_NUM_CDC_DATA,
 	ITF_NUM_HID_KBD,
+	ITF_NUM_HID_MISC,
 	ITF_NUM_TOTAL
 };
 
-tusb_desc_device_t const desc_device = {
+static const tusb_desc_device_t desc_device = {
 	.bLength            = sizeof(tusb_desc_device_t),
 	.bDescriptorType    = TUSB_DESC_DEVICE,
 	.bcdUSB             = USB_BCD,
@@ -53,18 +55,18 @@ tusb_desc_device_t const desc_device = {
 	.bNumConfigurations = 0x01
 };
 
-uint8_t const desc_hid_kbd_report[] = {
+static const uint8_t desc_hid_kbd_report[] = {
 	TUD_HID_REPORT_DESC_KEYBOARD()
 };
 
-uint8_t const desc_hid_misc_report[] = {
+static const uint8_t desc_hid_misc_report[] = {
 	TUD_HID_REPORT_DESC_MOUSE(HID_REPORT_ID(REPORT_ID_MOUSE)),
 	TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(REPORT_ID_CONSUMER)),
 	TUD_HID_REPORT_DESC_SYSTEM_CONTROL(HID_REPORT_ID(REPORT_ID_SYSTEM)),
 	TUD_HID_REPORT_DESC_GAMEPAD(HID_REPORT_ID(REPORT_ID_GAMEPAD))
 };
 
-uint8_t const desc_fs_configuration[] = {
+static const uint8_t desc_fs_configuration[] = {
 	/* Config number, interface count, string index,
 	 * total length, attribute, power in mA */
 	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN,
@@ -78,11 +80,13 @@ uint8_t const desc_fs_configuration[] = {
 	/* Interface number, string index, protocol, report descriptor len,
 	 * EP In address, size & polling interval */
 	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 0, HID_ITF_PROTOCOL_KEYBOARD,
-		sizeof(desc_hid_kbd_report), EPNUM_HID, 8, 1)
+		sizeof(desc_hid_kbd_report), EPNUM_HID_KBD, 8, 1),
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_MISC, 0, HID_ITF_PROTOCOL_NONE,
+		sizeof(desc_hid_misc_report), EPNUM_HID_MISC, 16, 1)
 };
 
 #if TUD_OPT_HIGH_SPEED
-uint8_t const desc_hs_configuration[] = {
+static const uint8_t desc_hs_configuration[] = {
 	/* Config number, interface count, string index,
 	 * total length, attribute, power in mA */
 	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN,
@@ -96,12 +100,14 @@ uint8_t const desc_hs_configuration[] = {
 	/* Interface number, string index, protocol, report descriptor len,
 	 * EP In address, size & polling interval */
 	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 0, HID_ITF_PROTOCOL_KEYBOARD,
-		sizeof(desc_hid_kbd_report), EPNUM_HID, 8, 1)
+		sizeof(desc_hid_kbd_report), EPNUM_HID_KBD, 8, 1),
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_MISC, 0, HID_ITF_PROTOCOL_NONE,
+		sizeof(desc_hid_misc_report), EPNUM_HID_MISC, 16, 1)
 };
 
-uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
+static uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
 
-tusb_desc_device_qualifier_t const desc_device_qualifier =
+static const tusb_desc_device_qualifier_t desc_device_qualifier =
 {
 	.bLength            = sizeof(tusb_desc_device_qualifier_t),
 	.bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
@@ -117,53 +123,51 @@ tusb_desc_device_qualifier_t const desc_device_qualifier =
 };
 #endif
 
-char const *string_desc_arr[] = {
-	[0] = "\x07\x04",         /* LangID: German (0x0407) */
-	[1] = "TinyUSB",          /* Manufacturer */
-	[2] = "TinyUSB Device",   /* Product */
-	[3] = "123456",           /* Serials, should use chip ID */
-	[4] = "SXKBD CDC",
+static const char *string_desc_arr[] = {
+	[0] = "\x07\x04",       /* LangID: German (0x0407) */
+	[1] = "SNX",            /* Manufacturer */
+	[2] = "SXKBD Keyboard", /* Product */
+	[3] = "000001",         /* Serial Number */
+	[4] = "HID-CDC",
+	[5] = "HID-KBD",
+	[6] = "HID-MISC"
 };
 
 static uint16_t _desc_str[32];
 
-/* Invoked on GET DEVICE DESCRIPTOR */
-uint8_t const *
+const uint8_t *
 tud_descriptor_device_cb(void)
 {
-	return (uint8_t const *) &desc_device;
+	return (const uint8_t *) &desc_device;
 }
 
-/* Invoked on GET HID REPORT DESCRIPTOR */
-uint8_t const *
-tud_hid_descriptor_report_cb(uint8_t itf)
+const uint8_t *
+tud_hid_descriptor_report_cb(uint8_t instance)
 {
-	(void) itf;
-	return desc_hid_kbd_report;
+	if (instance == INST_HID_KBD)
+		return desc_hid_kbd_report;
+	else
+		return desc_hid_misc_report;
 }
 
-/* Invoked on GET CONFIGURATION DESCRIPTOR */
-uint8_t const *
-tud_descriptor_configuration_cb(uint8_t index)
+const uint8_t *
+tud_descriptor_configuration_cb(uint8_t instance)
 {
-	(void) index;
-
 #if TUD_OPT_HIGH_SPEED
-	return (tud_speed_get() == TUSB_SPEED_HIGH) ?
-		desc_hs_configuration : desc_fs_configuration;
+	if (tud_speed_get() == TUSB_SPEED_HIGH)
+		return desc_hs_configuration;
+	else
+		return desc_fs_configuration;
 #else
 	return desc_fs_configuration;
 #endif
 }
 
-/* Invoked on GET STRING DESCRIPTOR */
-uint16_t const *
+const uint16_t *
 tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
 	const char *str;
 	uint8_t i, chr_count;
-
-	(void) langid;
 
 	if (index == 0) {
 		memcpy(&_desc_str[1], string_desc_arr[0], 2);
@@ -190,21 +194,22 @@ tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 }
 
 #if TUD_OPT_HIGH_SPEED
-uint8_t const *
+const uint8_t *
 tud_descriptor_device_qualifier_cb(void)
 {
-	return (uint8_t const*) &desc_device_qualifier;
+	return (const uint8_t*) &desc_device_qualifier;
 }
 
-/* Invoked on GET OTHER SEED CONFIGURATION DESCRIPTOR */
-uint8_t const *
-tud_descriptor_other_speed_configuration_cb(uint8_t index)
+const uint8_t *
+tud_descriptor_other_speed_configuration_cb(uint8_t instance)
 {
-	(void) index;
-
-	memcpy(desc_other_speed_config, (tud_speed_get() == TUSB_SPEED_HIGH)
-		? desc_fs_configuration : desc_hs_configuration,
-		CONFIG_TOTAL_LEN);
+	if (tud_speed_get() == TUSB_SPEED_HIGH) {
+		memcpy(desc_other_speed_config, desc_hs_configuration,
+			CONFIG_TOTAL_LEN);
+	} else {
+		memcpy(desc_other_speed_config, desc_fs_configuration,
+			CONFIG_TOTAL_LEN);
+	}
 
 	desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
 

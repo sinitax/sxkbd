@@ -1,16 +1,17 @@
 #include "hid.h"
 
-#include "keysym/consumer.h"
-#include "keysym/system.h"
-#include "hid/keyboard.h"
-#include "hid/consumer.h"
-#include "hid/system.h"
-
+#include "led.h"
 #include "split.h"
 #include "keymat.h"
 #include "keysym.h"
 #include "keymap.h"
 
+#include "class/hid/hid.h"
+#include "keysym/consumer.h"
+#include "keysym/system.h"
+#include "hid/keyboard.h"
+#include "hid/consumer.h"
+#include "hid/system.h"
 #include "hardware/timer.h"
 #include "bsp/board.h"
 #include "pico/types.h"
@@ -94,6 +95,8 @@ static void macro_held_push(uint32_t keysym);
 static bool macro_held_find(uint32_t keysym);
 
 static void add_keycode(uint8_t keycode);
+
+/* TODO: add static prototypes */
 
 void
 active_layers_reset(void)
@@ -384,6 +387,28 @@ send_keyboard_report(void)
 }
 
 bool
+send_mouse_report(void)
+{
+	bool sent;
+
+	sent = false;
+	if (memcmp(&mouse_report, &mouse_report_prev,
+			sizeof(mouse_report))) {
+		tud_hid_n_mouse_report(INST_HID_MISC,
+			REPORT_ID_MOUSE, mouse_report.btns,
+			mouse_report.x, mouse_report.y,
+			mouse_report.h, mouse_report.v);
+		memcpy(&mouse_report_prev, &mouse_report,
+			sizeof(mouse_report));
+		sent = true;
+	}
+
+	memset(&mouse_report, 0, sizeof(mouse_report));
+
+	return sent;
+}
+
+bool
 send_consumer_report(void)
 {
 	bool sent;
@@ -391,7 +416,8 @@ send_consumer_report(void)
 	sent = false;
 	if (memcmp(&consumer_report, &consumer_report_prev,
 			sizeof(consumer_report))) {
-		tud_hid_report(REPORT_ID_CONSUMER,
+		INFO("CONSUMER SEND");
+		tud_hid_n_report(INST_HID_MISC, REPORT_ID_CONSUMER,
 			&consumer_report.code, 2);
 		memcpy(&consumer_report_prev, &consumer_report,
 			sizeof(consumer_report));
@@ -411,7 +437,7 @@ send_system_report(void)
 	sent = false;
 	if (memcmp(&system_report, &system_report_prev,
 			sizeof(system_report))) {
-		tud_hid_report(REPORT_ID_SYSTEM,
+		tud_hid_n_report(INST_HID_MISC, REPORT_ID_SYSTEM,
 			&system_report.code, 2);
 		memcpy(&system_report_prev, &system_report,
 			sizeof(system_report));
@@ -424,27 +450,6 @@ send_system_report(void)
 }
 
 bool
-send_mouse_report(void)
-{
-	bool sent;
-
-	sent = false;
-	if (memcmp(&mouse_report, &mouse_report_prev,
-			sizeof(mouse_report))) {
-		tud_hid_mouse_report(REPORT_ID_NONE, mouse_report.btns,
-			mouse_report.x, mouse_report.y,
-			mouse_report.h, mouse_report.v);
-		memcpy(&mouse_report_prev, &mouse_report,
-			sizeof(mouse_report));
-		sent = true;
-	}
-
-	memset(&mouse_report, 0, sizeof(mouse_report));
-
-	return sent;
-}
-
-bool
 send_gamepad_report(void)
 {
 	bool sent;
@@ -452,7 +457,7 @@ send_gamepad_report(void)
 	sent = false;
 	if (memcmp(&gamepad_report, &gamepad_report_prev,
 			sizeof(gamepad_report))) {
-		tud_hid_gamepad_report(REPORT_ID_GAMEPAD,
+		tud_hid_n_gamepad_report(INST_HID_MISC, REPORT_ID_GAMEPAD,
 			gamepad_report.x, gamepad_report.y, gamepad_report.z,
 			gamepad_report.rz, gamepad_report.rx, gamepad_report.ry,
 			gamepad_report.hat, gamepad_report.btns);
@@ -470,12 +475,12 @@ bool
 send_hid_report(int id)
 {
 	switch (id) {
+	case REPORT_ID_MOUSE:
+		return send_mouse_report();
 	case REPORT_ID_CONSUMER:
 		return send_consumer_report();
 	case REPORT_ID_SYSTEM:
 		return send_system_report();
-	case REPORT_ID_MOUSE:
-		return send_mouse_report();
 	case REPORT_ID_GAMEPAD:
 		return send_gamepad_report();
 	}
@@ -494,11 +499,31 @@ send_next_hid_report(uint8_t min)
 	}
 }
 
+bool
+hid_ready()
+{
+	return tud_hid_n_ready(INST_HID_KBD)
+		&& tud_hid_n_ready(INST_HID_MISC);
+}
+
+void
+tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol)
+{
+	if (protocol == HID_PROTOCOL_BOOT) {
+		led_rgb = WS2812_U32RGB(100, 100, 0);
+	} else {
+		led_rgb = WS2812_U32RGB(100, 0, 100);
+	}
+	led_mode = LED_ON;
+	led_reset = true;
+}
+
 void
 tud_hid_report_complete_cb(uint8_t instance,
 	uint8_t const *report, uint8_t len)
 {
-	send_next_hid_report(report[0] + 1);
+	if (report[0] >= REPORT_ID_MIN)
+		send_next_hid_report(report[0] + 1);
 }
 
 void
@@ -538,11 +563,12 @@ hid_send_macro(const uint32_t *keysyms, uint cnt)
 
 	active_mods = 0;
 	active_weak_mods = 0;
+	macro_running = true;
 	memset(&keyboard_report, 0, sizeof(keyboard_report));
 	memset(&keyboard_report_prev, 0, sizeof(keyboard_report));
 	memset(&seen_mat, 0, sizeof(seen_mat));
+	while (!hid_ready()) tud_task();
 
-	macro_running = true;
 	for (i = 0; i < cnt; i++) {
 		if (IS_MACRO_DELAY(keysyms[i])) {
 			start_ms = board_millis();
@@ -579,22 +605,19 @@ hid_send_macro(const uint32_t *keysyms, uint cnt)
 			process_keydown(keysyms[i], mx, my);
 		}
 
-		while (!tud_hid_n_ready(INST_HID_KBD))
-			tud_task();
-		send_next_hid_report(REPORT_ID_MIN);
+		send_keyboard_report();
+		while (!hid_ready()) tud_task();
 
 		if (IS_MACRO_PRESS(keysyms[i])) {
 			memcpy(&keyboard_report, &tmp, sizeof(keyboard_report));
-			while (!tud_hid_n_ready(INST_HID_KBD))
-				tud_task();
-			send_next_hid_report(REPORT_ID_MIN);
+			send_keyboard_report();
+			while (!hid_ready()) tud_task();
 		}
 	}
 
 	memset(&keyboard_report, 0, sizeof(keyboard_report));
-	send_next_hid_report(REPORT_ID_MIN);
-	while (!tud_hid_n_ready(INST_HID_KBD))
-		tud_task();
+	send_keyboard_report();
+	while (!hid_ready()) tud_task();
 
 	macro_running = false;
 }
@@ -605,5 +628,7 @@ hid_task(void)
 	update_report();
 	if (tud_hid_n_ready(INST_HID_KBD))
 		send_keyboard_report();
+	if (tud_hid_n_ready(INST_HID_MISC))
+		send_next_hid_report(REPORT_ID_MIN);
 }
 
