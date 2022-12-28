@@ -11,6 +11,10 @@ TINYUSB_FILES = $(TINYUSB_PATH)/hw/bsp/family_support.cmake
 
 CMAKE_FLAGS = -DFAMILY=$(FAMILY) -DPICO_SDK_PATH=$(PICO_SDK_PATH)
 CMAKE_FLAGS += -DSPLIT_SIDE=$(SPLIT_SIDE) $(CMAKE_FLAGS_LEFT_EXTRA)
+ifdef ROLE
+SPLIT_ROLE = $(shell echo "$(ROLE)" | tr a-z A-Z)
+CMAKE_FLAGS += -DSPLIT_ROLE=$(SPLIT_ROLE)
+endif
 
 all: left right
 
