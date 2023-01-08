@@ -186,15 +186,11 @@ const uint32_t (*keymap_layers)[KEY_ROWS][KEY_COLS] = keymap_layers_de;
 uint32_t keymap_layers_count = keymap_layers_de_count;
 
 const uint32_t macro_kvm1[] = {
-	KC_LEFT_CTRL, DELAY(100),
-	KC_LEFT_CTRL, DELAY(100),
-	KC_1
+	KC_LEFT_CTRL, KC_LEFT_CTRL, KC_1
 };
 
 const uint32_t macro_kvm2[] = {
-	KC_LEFT_CTRL, DELAY(100),
-	KC_LEFT_CTRL, DELAY(100),
-	KC_2
+	KC_LEFT_CTRL, KC_LEFT_CTRL, KC_2
 };
 
 void
