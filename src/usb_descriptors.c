@@ -7,7 +7,7 @@
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 
 #define CONFIG_TOTAL_LEN \
-	(TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + 2 * TUD_HID_DESC_LEN)
+	(TUD_CONFIG_DESC_LEN + 2 * TUD_HID_DESC_LEN + TUD_CDC_DESC_LEN)
 
 /* MCU-specific! */
 #define EPNUM_HID_KBD    0x81
@@ -19,10 +19,10 @@
 /* NOTE: same VID/PID with different interface can cause issues! */
 
 enum {
-	ITF_NUM_CDC,
-	ITF_NUM_CDC_DATA,
 	ITF_NUM_HID_KBD,
 	ITF_NUM_HID_MISC,
+	ITF_NUM_CDC,
+	ITF_NUM_CDC_DATA,
 	ITF_NUM_TOTAL
 };
 
@@ -65,17 +65,17 @@ static const uint8_t desc_fs_configuration[] = {
 	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN,
 		TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
+	/* Interface number, string index, protocol, report descriptor len,
+	 * EP In address, size & polling interval */
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 5, HID_ITF_PROTOCOL_KEYBOARD,
+		sizeof(desc_hid_kbd_report), EPNUM_HID_KBD, 8, 1),
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_MISC, 6, HID_ITF_PROTOCOL_NONE,
+		sizeof(desc_hid_misc_report), EPNUM_HID_MISC, 16, 1),
+
 	/* Interface number, string index, EP notification address and size,
 	 * EP data address (out, in) and size */
 	TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 8,
 		EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
-
-	/* Interface number, string index, protocol, report descriptor len,
-	 * EP In address, size & polling interval */
-	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 0, HID_ITF_PROTOCOL_KEYBOARD,
-		sizeof(desc_hid_kbd_report), EPNUM_HID_KBD, 8, 1),
-	TUD_HID_DESCRIPTOR(ITF_NUM_HID_MISC, 0, HID_ITF_PROTOCOL_NONE,
-		sizeof(desc_hid_misc_report), EPNUM_HID_MISC, 16, 1)
 };
 
 #if TUD_OPT_HIGH_SPEED
@@ -85,17 +85,17 @@ static const uint8_t desc_hs_configuration[] = {
 	TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN,
 		TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
+	/* Interface number, string index, protocol, report descriptor len,
+	 * EP In address, size & polling interval */
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 5, HID_ITF_PROTOCOL_KEYBOARD,
+		sizeof(desc_hid_kbd_report), EPNUM_HID_KBD, 8, 1),
+	TUD_HID_DESCRIPTOR(ITF_NUM_HID_MISC, 6, HID_ITF_PROTOCOL_NONE,
+		sizeof(desc_hid_misc_report), EPNUM_HID_MISC, 16, 1),
+
 	/* Interface number, string index, EP notification address and size,
 	 * EP data address (out, in) and size */
 	TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 8,
 		EPNUM_CDC_OUT, EPNUM_CDC_IN, 512),
-
-	/* Interface number, string index, protocol, report descriptor len,
-	 * EP In address, size & polling interval */
-	TUD_HID_DESCRIPTOR(ITF_NUM_HID_KBD, 0, HID_ITF_PROTOCOL_KEYBOARD,
-		sizeof(desc_hid_kbd_report), EPNUM_HID_KBD, 8, 1),
-	TUD_HID_DESCRIPTOR(ITF_NUM_HID_MISC, 0, HID_ITF_PROTOCOL_NONE,
-		sizeof(desc_hid_misc_report), EPNUM_HID_MISC, 16, 1)
 };
 
 static uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
