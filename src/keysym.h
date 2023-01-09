@@ -23,8 +23,9 @@
 
 #define IS_MACRO_HOLD(x)    ((x) & (1U << B_MACRO_HOLD))
 #define IS_MACRO_RELEASE(x) ((x) & (1U << B_MACRO_RELEASE))
-#define IS_MACRO_PRESS(x)   (!IS_MACRO_HOLD(x) && !IS_MACRO_RELEASE(x))
 #define IS_MACRO_DELAY(x)   ((x) & (1U << B_MACRO_DELAY))
+#define IS_MACRO_PRESS(x)   (!IS_MACRO_HOLD(x) && !IS_MACRO_RELEASE(x) \
+		&& !IS_MACRO_DELAY(x))
 
 #define IS_LEFT_CTRL(x)   (IS_CTRL(x) && !IS_RIGHT(x))
 #define IS_RIGHT_CTRL(x)  (IS_CTRL(x) && IS_RIGHT(x))
@@ -38,9 +39,10 @@
 #define IS_MOD(x) ((x) & MASK(B_TOGGLE, B_CTRL))
 
 #define TO_SPECIAL(x) (((x) >> B_SPECIAL_SEL) & 0b11)
-#define TO_KC(x) ((x) & 0xFF)
-#define TO_SYM(x) ((x) & 0xFF)
+#define TO_KC(x)    ((x) & 0xFF)
+#define TO_USER(x)  ((x) & 0xFF)
 #define TO_LAYER(x) ((x) & 0xFF)
+#define TO_SYM(x)   ((x) & 0xFFFF)
 #define TO_DELAY(x) ((x) & 0xFFFF)
 
 #define SPECIAL(x, g) ((x) | (1U << B_SPECIAL) | ((g) << B_SPECIAL_SEL))

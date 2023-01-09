@@ -19,6 +19,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define MACRO_X 0
+#define MACRO_Y 7
+
 struct layerkey {
 	uint layer;
 	uint key;
@@ -172,7 +175,7 @@ void
 macro_held_push(uint32_t keysym)
 {
 	if (macro_held_cnt == MACRO_HOLD_MAX) {
-		WARN("Macro help keys overflow");
+		WARN("Macro held keys overflow");
 		return;
 	}
 
@@ -269,7 +272,7 @@ process_keypress(uint32_t keysym, uint x, uint y)
 		active_layers_reset();
 		active_layers[0].layer = TO_LAYER(keysym);
 	} else if (IS_USER(keysym)) {
-		process_user_keypress(TO_SYM(keysym), x, y);
+		process_user_keypress(TO_USER(keysym), x, y);
 	} else if (IS_KC(keysym) && IS_KEY_KC(TO_KC(keysym))) {
 		/* FIXME: two keys pressed at the exact same time with
 		 * different weak modifiers will not be reported correctly */
@@ -282,8 +285,10 @@ process_keypress(uint32_t keysym, uint x, uint y)
 void
 process_keydown(uint32_t keysym, uint x, uint y)
 {
-	if (seen_mat[y][x]) return;
-	seen_mat[y][x] = true;
+	if (x != MACRO_X || y != MACRO_Y) {
+		if (seen_mat[y][x]) return;
+		seen_mat[y][x] = true;
+	}
 
 	if (IS_KC(keysym) && IS_KEY_KC(TO_KC(keysym))) {
 		add_keycode(TO_KC(keysym));
@@ -300,7 +305,7 @@ process_keyrelease(uint32_t keysym, uint x, uint y)
 	uint i;
 
 	if (IS_USER(keysym))
-		process_user_keyrelease(TO_SYM(keysym), x, y);
+		process_user_keyrelease(TO_USER(keysym), x, y);
 
 	for (i = 1; i <= active_layers_top; i++) {
 		if (active_layers[i].key == y * KEY_COLS + x) {
@@ -549,8 +554,7 @@ hid_switch_layer_with_key(uint8_t layer, uint x, uint y)
 void
 hid_send_macro(const uint32_t *keysyms, uint cnt)
 {
-	/* TODO: replace macro x y with less hacky alternative */
-	static const uint mx = 0, my = 7;
+	static const uint mx = MACRO_X, my = MACRO_Y;
 	struct hid_keyboard_report tmp;
 	uint32_t start_ms;
 	uint i, k;
@@ -580,29 +584,25 @@ hid_send_macro(const uint32_t *keysyms, uint cnt)
 		memset(&keyboard_report, 0, sizeof(keyboard_report));
 
 		if (IS_MACRO_RELEASE(keysyms[i]))
-			macro_held_pop(keysyms[i]);
+			macro_held_pop(TO_SYM(keysyms[i]));
 
 		for (k = 0; k < i; k++) {
-			if (macro_held_find(keysyms[k])) {
-				seen_mat[my][mx] = false;
-				process_keydown(keysyms[k], mx, my);
-			}
+			if (!IS_MACRO_HOLD(keysyms[k]))
+				continue;
+			if (macro_held_find(TO_SYM(keysyms[k])))
+				process_keydown(TO_SYM(keysyms[k]), mx, my);
 		}
-
-		if (IS_MACRO_HOLD(keysyms[i]))
-			macro_held_push(keysyms[i]);
 
 		if (IS_MACRO_PRESS(keysyms[i])) {
 			keyboard_report.mods = active_weak_mods | active_mods;
 			memcpy(&tmp, &keyboard_report, sizeof(keyboard_report));
-		}
-
-		if (IS_MACRO_RELEASE(keysyms[i])) {
-			process_keyrelease(keysyms[i], mx, my);
-			process_keyup(keysyms[i], mx, my);
-		} else {
-			process_keypress(keysyms[i], mx, my);
-			process_keydown(keysyms[i], mx, my);
+			process_keypress(TO_SYM(keysyms[i]), mx, my);
+			process_keydown(TO_SYM(keysyms[i]), mx, my);
+		} else if (IS_MACRO_HOLD(keysyms[i])) {
+			macro_held_push(TO_SYM(keysyms[i]));
+		} else if (IS_MACRO_RELEASE(keysyms[i])) {
+			process_keyrelease(TO_SYM(keysyms[i]), mx, my);
+			process_keyup(TO_SYM(keysyms[i]), mx, my);
 		}
 
 		send_keyboard_report();

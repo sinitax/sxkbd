@@ -49,7 +49,7 @@
 	                                                            \
 	DE_J    , DE_L    , DE_U    , DE_Y    , DE_HASH , DE_SS   , \
 	DE_M    , DE_N    , DE_E    , DE_I    , DE_O    , SW(SPEC), \
-	DE_K    , DE_H    , DE_COMM , DE_DOT  , DE_MINS , XXXXXXX , \
+	DE_K    , DE_H    , DE_COMM , DE_DOT  , DE_MINS , SW(MISC), \
 	SW(NUMS), KC_SPC  , KC_LCTL                                 \
 )
 
@@ -125,6 +125,18 @@
 	_______ , _______ , _______                                 \
 )
 
+#define LAYER_MISC_DE KEYMAP(                                       \
+	XXXXXXX , SX(TTY1), SX(TTY2), SX(TTY3), SX(TTY4), SX(TTY5), \
+	XXXXXXX , SX(TTY6), SX(TTY7), SX(TTY8), SX(TTY9),SX(TTY10), \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	                              XXXXXXX , XXXXXXX , XXXXXXX , \
+	                                                            \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX                                 \
+)
+
 #define LAYER_GAME_DE KEYMAP(                                       \
 	KC_ESC  , DE_Q    , DE_W    , DE_E    , DE_R    , DE_T    , \
 	SW(GNUM), DE_A    , DE_S    , DE_D    , DE_F    , DE_G    , \
@@ -158,6 +170,7 @@ enum {
 	NUMS, /* numbers */
 	SPEC, /* specials */
 	META, /* functions */
+	MISC,
 	GAME, /* gaming base */
 	GNUM, /* gaming nums */
 };
@@ -166,6 +179,16 @@ enum {
 	KVM1,
 	KVM2,
 	QUSW,
+	TTY1,
+	TTY2,
+	TTY3,
+	TTY4,
+	TTY5,
+	TTY6,
+	TTY7,
+	TTY8,
+	TTY9,
+	TTY10,
 };
 
 const uint32_t keymap_layers_de[][KEY_ROWS][KEY_COLS] = {
@@ -176,6 +199,7 @@ const uint32_t keymap_layers_de[][KEY_ROWS][KEY_COLS] = {
 	[NUMS] = LAYER_NUMS_DE,
 	[SPEC] = LAYER_SPEC_DE,
 	[META] = LAYER_META_DE,
+	[MISC] = LAYER_MISC_DE,
 	[GAME] = LAYER_GAME_DE,
 	[GNUM] = LAYER_GNUM_DE
 
@@ -185,12 +209,20 @@ const uint32_t keymap_layers_de_count = ARRLEN(keymap_layers_de);
 const uint32_t (*keymap_layers)[KEY_ROWS][KEY_COLS] = keymap_layers_de;
 uint32_t keymap_layers_count = keymap_layers_de_count;
 
-const uint32_t macro_kvm1[] = {
+static const uint32_t macro_kvm1[] = {
 	KC_LEFT_CTRL, KC_LEFT_CTRL, KC_1
 };
 
-const uint32_t macro_kvm2[] = {
+static const uint32_t macro_kvm2[] = {
 	KC_LEFT_CTRL, KC_LEFT_CTRL, KC_2
+};
+
+static const uint32_t ttysw_lut[] = {
+	KC_F1, KC_F2, KC_F3, KC_F4, KC_F5,
+	KC_F6, KC_F7, KC_F8, KC_F9, KC_F10
+};
+static uint32_t macro_ttysw[] = {
+	HOLD(KC_LEFT_CTRL), HOLD(KC_LEFT_ALT), KC_F1,
 };
 
 void
@@ -210,6 +242,10 @@ process_user_keypress(uint8_t sym, uint x, uint y)
 		} else {
 			hid_switch_layer_with_key(QUIK, x, y);
 		}
+		break;
+	case TTY1...TTY10:
+		macro_ttysw[2] = ttysw_lut[sym - TTY1];
+		hid_send_macro(macro_ttysw, ARRLEN(macro_ttysw));
 		break;
 	}
 
