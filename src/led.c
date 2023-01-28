@@ -4,6 +4,7 @@
 
 #include "bsp/board.h"
 
+#define BLINK_DELAY 500
 #define ONBOARD_LED_PIN 25
 
 static struct ws2812 onboard_led;
@@ -18,7 +19,7 @@ led_init(void)
 {
 	led_reset = true;
 	led_mode = LED_ON;
-	led_rgb = WS2812_U32RGB(100, 100, 100);
+	led_rgb = SOFT_WHITE;
 	ws2812_init(&onboard_led, pio0, ONBOARD_LED_PIN);
 }
 
@@ -35,7 +36,7 @@ led_task(void)
 		break;
 	case LED_ON:
 		if (led_reset)
-			ws2812_put(&onboard_led, led_rgb);
+			ws2812_put(&onboard_led, WS2812_U32RGB(led_rgb));
 		break;
 	case LED_BLINK:
 		if (led_reset)
@@ -46,10 +47,21 @@ led_task(void)
 		start_ms += led_blink_ms;
 
 		state = !state;
-		ws2812_put(&onboard_led, state ? led_rgb : 0);
+		ws2812_put(&onboard_led, state ? WS2812_U32RGB(led_rgb) : 0);
 		break;
 	}
 
 	led_reset = false;
 }
 
+void
+led_blip(uint32_t rgb)
+{
+	uint32_t start;
+
+	ws2812_put(&onboard_led, WS2812_U32RGB(rgb));
+	start = board_millis();
+	while (board_millis() < start + BLINK_DELAY)
+		tud_task();
+	led_task();
+}

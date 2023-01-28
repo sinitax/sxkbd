@@ -37,6 +37,8 @@ main(void)
 	split_init();
 	hid_init();
 
+	led_blip(HARD_WHITE);
+
 	start = board_millis();
 	while (true) {
 		tud_task();
@@ -59,7 +61,7 @@ tud_mount_cb(void)
 #ifndef SPLIT_ROLE
 	split_role = MASTER;
 #endif
-	led_rgb = WS2812_U32RGB(100, 0, 100);
+	led_rgb = SOFT_PURPLE;
 	led_mode = LED_ON;
 	led_reset = true;
 }
@@ -67,8 +69,10 @@ tud_mount_cb(void)
 void
 tud_umount_cb(void)
 {
+	led_blip(HARD_WHITE);
+
 	led_blink_ms = 500;
-	led_rgb = WS2812_U32RGB(100, 100, 100);
+	led_rgb = SOFT_WHITE;
 	led_mode = LED_BLINK;
 	led_reset = true;
 }
@@ -79,7 +83,7 @@ tud_suspend_cb(bool remote_wakeup_en)
 #ifndef SPLIT_ROLE
 	split_role = SLAVE;
 #endif
-	led_rgb = WS2812_U32RGB(100, 100, 100);
+	led_rgb = SOFT_WHITE;
 	led_mode = LED_ON;
 	led_reset = true;
 }
@@ -87,7 +91,7 @@ tud_suspend_cb(bool remote_wakeup_en)
 void
 tud_resume_cb(void)
 {
-	led_rgb = WS2812_U32RGB(100, 0, 100);
+	led_rgb = SOFT_PURPLE;
 	led_mode = LED_ON;
 	led_reset = true;
 }
@@ -137,10 +141,16 @@ process_cmd(char *cmd)
 			loglevel = LOG_INFO;
 		} else if (!strcmp(arg, "warn")) {
 			loglevel = LOG_WARN;
-		} else if (!strcmp(arg, "warn")) {
+		} else if (!strcmp(arg, "err")) {
 			loglevel = LOG_ERR;
 		} else {
-			printf("Invalid log level: %s\n", arg);
+			printf("Invalid log level\n");
+		}
+	} else if (!strcmp(cmd, "warn")) {
+		if (*warnlog) {
+			printf("Warning: %s\n", warnlog);
+		} else {
+			printf("No warnings logged\n");
 		}
 	} else {
 		printf("Invalid command: %s\n", cmd);

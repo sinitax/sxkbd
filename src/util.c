@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 
+char warnlog[512];
 int loglevel = LOG_INFO;
 
 static void
@@ -40,12 +41,20 @@ void
 __attribute__ ((format (printf, 2, 3)))
 stdio_log(int level, const char *fmtstr, ...)
 {
-	va_list ap;
+	va_list ap, cpy;
 
-	if (!tud_cdc_connected())
-		return;
+	if (level == LOG_WARN) {
+		led_blip(HARD_RED);
+		va_copy(cpy, ap);
+		va_start(cpy, fmtstr);
+		vsnprintf(warnlog, sizeof(warnlog), fmtstr, cpy);
+		va_end(cpy);
+	}
 
 	if (level > loglevel)
+		return;
+
+	if (!tud_cdc_connected())
 		return;
 
 	va_start(ap, fmtstr);
@@ -61,17 +70,15 @@ blink_panic(uint32_t blink_ms, uint32_t rgb, const char *fmtstr, ...)
 {
 	va_list ap;
 
-	va_start(ap, fmtstr);
-
 	led_blink_ms = blink_ms;
 	led_rgb = rgb;
 	led_mode = LED_BLINK;
 
+	va_start(ap, fmtstr);
 	while (1) {
 		tud_task();
 		panic_task(fmtstr, ap, 1000);
 		led_task();
 	}
-
 	va_end(ap);
 }

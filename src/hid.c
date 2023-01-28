@@ -515,9 +515,9 @@ void
 tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol)
 {
 	if (protocol == HID_PROTOCOL_BOOT) {
-		led_rgb = WS2812_U32RGB(100, 100, 0);
+		led_rgb = SOFT_YELLOW;
 	} else {
-		led_rgb = WS2812_U32RGB(100, 0, 100);
+		led_rgb = SOFT_PURPLE;
 	}
 	led_mode = LED_ON;
 	led_reset = true;
