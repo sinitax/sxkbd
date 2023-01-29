@@ -19,6 +19,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define HID_REPORT_CODES 6
+
 #define MACRO_X 0
 #define MACRO_Y 7
 
@@ -28,8 +30,8 @@ struct layerkey {
 };
 
 struct hid_keyboard_report {
-	uint8_t mods;
-	uint8_t codes[6];
+	uint8_t mods, weak_mods;
+	uint8_t codes[HID_REPORT_CODES];
 	uint8_t cnt;
 };
 
@@ -362,21 +364,34 @@ update_report(void)
 }
 
 bool
+update_keyboard_report(struct hid_keyboard_report *new,
+	struct hid_keyboard_report *old)
+{
+	return memcmp(new, old, sizeof(struct hid_keyboard_report));
+}
+
+bool
+update_weak_mods(struct hid_keyboard_report *new,
+	struct hid_keyboard_report *old)
+{
+	return memcmp(new->codes, old->codes, HID_REPORT_CODES);
+}
+
+bool
 send_keyboard_report(void)
 {
 	bool sent;
 
 	sent = false;
-	keyboard_report.mods = active_weak_mods | active_mods;
 
-	if (macro_running)
-		INFO("REPORT %u %u", keyboard_report.mods,
-			keyboard_report.codes[0]);
+	keyboard_report.mods = active_mods;
+	if (update_weak_mods(&keyboard_report, &keyboard_report_prev))
+		keyboard_report.weak_mods = active_weak_mods;
 
-	if (memcmp(&keyboard_report, &keyboard_report_prev,
-			sizeof(keyboard_report))) {
+	if (update_keyboard_report(&keyboard_report, &keyboard_report_prev)) {
 		tud_hid_n_keyboard_report(INST_HID_KBD, REPORT_ID_NONE,
-			keyboard_report.mods, keyboard_report.codes);
+			keyboard_report.mods | keyboard_report.weak_mods,
+			keyboard_report.codes);
 		memcpy(&keyboard_report_prev, &keyboard_report,
 			sizeof(keyboard_report));
 		sent = true;
@@ -384,8 +399,11 @@ send_keyboard_report(void)
 		active_weak_mods = 0;
 	}
 
-	memset(&keyboard_report, 0, sizeof(keyboard_report));
 	active_mods = 0;
+
+	memset(keyboard_report.codes, 0, HID_REPORT_CODES);
+	keyboard_report.cnt = 0;
+
 	memset(seen_mat, 0, sizeof(seen_mat));
 
 	return sent;
