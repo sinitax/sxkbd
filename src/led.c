@@ -36,7 +36,7 @@ led_task(void)
 		break;
 	case LED_ON:
 		if (led_reset)
-			ws2812_put(&onboard_led, WS2812_U32RGB(led_rgb));
+			ws2812_put(&onboard_led, led_rgb);
 		break;
 	case LED_BLINK:
 		if (led_reset)
@@ -47,7 +47,7 @@ led_task(void)
 		start_ms += led_blink_ms;
 
 		state = !state;
-		ws2812_put(&onboard_led, state ? WS2812_U32RGB(led_rgb) : 0);
+		ws2812_put(&onboard_led, state ? led_rgb : 0);
 		break;
 	}
 
@@ -59,7 +59,7 @@ led_blip(uint32_t rgb)
 {
 	uint32_t start;
 
-	ws2812_put(&onboard_led, WS2812_U32RGB(rgb));
+	ws2812_put(&onboard_led, rgb);
 	start = board_millis();
 	while (board_millis() < start + BLINK_DELAY)
 		tud_task();

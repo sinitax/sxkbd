@@ -39,5 +39,7 @@ ws2812_init(struct ws2812 *pix, PIO pio, uint pin)
 
 void
 ws2812_put(struct ws2812 *pix, uint32_t rgb) {
+	rgb = ((rgb & 0xFF0000) >> 16) | ((rgb & 0x00FF00) << 8)
+		| ((rgb & 0x0000FF) << 8);
 	pio_sm_put_blocking(pix->pio, pix->sm, rgb << 8u);
 }
