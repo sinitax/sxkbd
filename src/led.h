@@ -21,6 +21,11 @@ extern bool led_reset;
 extern uint32_t led_blink_ms;
 extern uint32_t led_rgb;
 
+extern bool led_blip;
+extern bool led_blip_reset;
+extern uint32_t led_blip_ms;
+extern uint32_t led_blip_rgb;
+
 void led_init(void);
 void led_task(void);
-void led_blip(uint32_t rgb);
+void led_start_blip(uint32_t rgb, uint32_t ms);

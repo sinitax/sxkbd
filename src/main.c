@@ -37,7 +37,7 @@ main(void)
 	split_init();
 	hid_init();
 
-	led_blip(HARD_WHITE);
+	led_start_blip(HARD_WHITE, 500);
 
 	start = board_millis();
 	while (true) {
@@ -69,12 +69,12 @@ tud_mount_cb(void)
 void
 tud_umount_cb(void)
 {
-	led_blip(HARD_WHITE);
-
 	led_blink_ms = 500;
 	led_rgb = SOFT_WHITE;
 	led_mode = LED_BLINK;
 	led_reset = true;
+
+	led_start_blip(HARD_WHITE, 500);
 }
 
 void

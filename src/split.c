@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 
-#define UART_TIMEOUT 20
+#define UART_TIMEOUT 5
 #define UART_BAUD 115200
 
 #if SPLIT_SIDE == LEFT
@@ -34,7 +34,7 @@
 #endif
 
 enum {
-	CMD_SCAN_KEYMAT_REQ = 0xA0,
+	CMD_SCAN_KEYMAT_REQ = 0x80,
 	CMD_SCAN_KEYMAT_RESP,
 	CMD_STDIO_PUTS
 };
@@ -53,6 +53,7 @@ static uint uart_recv(uint8_t *data, uint len);
 static uint uart_send(const uint8_t *data, uint len);
 
 static void handle_cmd(uint8_t cmd);
+static bool send_cmd(uint8_t cmd);
 static void irq_rx(void);
 
 static uint uart_tx_sm;
@@ -214,9 +215,18 @@ uart_send(const uint8_t *data, uint len)
 }
 
 void
-handle_cmd(uint8_t cmd)
+handle_cmd(uint8_t start)
 {
 	uint8_t buf[128];
+	uint8_t cmd;
+
+	if (start != 0xaa)
+		return;
+
+	if (!uart_recv(&cmd, 1)) {
+		WARN("Got start byte without command");
+		return;
+	}
 
 	switch (cmd) {
 	case CMD_SCAN_KEYMAT_REQ:
@@ -225,7 +235,7 @@ handle_cmd(uint8_t cmd)
 			break;
 		}
 		scan_pending = true;
-		return;
+		break;
 	case CMD_SCAN_KEYMAT_RESP:
 		if (split_role != MASTER) {
 			WARN("Got SCAN_KEYMAT_RESP as slave");
@@ -234,7 +244,7 @@ handle_cmd(uint8_t cmd)
 		if (uart_recv((uint8_t *) &halfmat, 4) != 4)
 			WARN("Incomplete matrix received");
 		scan_pending = false;
-		return;
+		break;
 	case CMD_STDIO_PUTS:
 		if (split_role != MASTER) {
 			WARN("Got STDIO_PUTS as slave");
@@ -243,10 +253,22 @@ handle_cmd(uint8_t cmd)
 		memset(buf, 0, sizeof(buf));
 		uart_recv(buf, sizeof(buf)-1);
 		printf("SLAVE: %s\n", buf);
-		return;
+		break;
+	default:
+		WARN("Unknown uart cmd: %i", cmd);
+		break;
 	}
+}
 
-	WARN("Unexpected uart cmd: %i", cmd);
+bool
+send_cmd(uint8_t cmd)
+{
+	uint8_t buf[2];
+
+	buf[0] = 0xaa;
+	buf[1] = cmd;
+
+	return uart_send(buf, 2) == 2;
 }
 
 void
@@ -273,41 +295,46 @@ void
 split_task(void)
 {
 	uint32_t start_ms;
-	uint8_t cmd;
 
 	if (split_role == MASTER) {
 		scan_pending = true;
-		cmd = CMD_SCAN_KEYMAT_REQ;
-		ASSERT(uart_send(&cmd, 1) == 1);
+		if (!send_cmd(CMD_SCAN_KEYMAT_REQ)) {
+			WARN("UART send SCAN_KEYMAT_REQ failed");
+			return;
+		}
 		keymat_next();
 		keymat_scan(); /* scan our side in parallel */
 		start_ms = board_millis();
-		while (scan_pending && board_millis() < start_ms + 20) {
+		while (scan_pending && board_millis() < start_ms + 3) {
 			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
 				handle_cmd(uart_rx_byte());
 			tud_task();
 		}
 		if (scan_pending) {
-			WARN("Slave matrix scan timeout");
+			WARN("Slave matrix scan timeout (%u)",
+				board_millis() - start_ms);
 		} else {
-			DEBUG("Slave matrix scan success");
+			DEBUG("Slave matrix scan success (%u)",
+				board_millis() - start_ms);
 			keymat_decode_half(SPLIT_OPP(SPLIT_SIDE), halfmat);
 		}
 		scan_pending = false;
 	} else {
 		start_ms = board_millis();
-		while (!scan_pending && board_millis() < start_ms + 20) {
+		while (!scan_pending && board_millis() < start_ms + 3) {
 			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
 				handle_cmd(uart_rx_byte());
 			tud_task();
 		}
 		if (scan_pending) {
 			keymat_scan();
-			cmd = CMD_SCAN_KEYMAT_RESP;
-			DEBUG("Sending SCAN_KEYMAT_RESP %i", cmd);
-			ASSERT(uart_send(&cmd, 1) == 1);
+			DEBUG("Sending SCAN_KEYMAT_RESP");
+			if (!send_cmd(CMD_SCAN_KEYMAT_RESP)) {
+				WARN("UART send SCAN_KEYMAT_RESP failed");
+				return;
+			}
 			halfmat = keymat_encode_half(SPLIT_SIDE);
-			ASSERT(uart_send((uint8_t *) &halfmat, 4) == 4);
+			uart_send((uint8_t *) &halfmat, 4);
 			scan_pending = false;
 		}
 	}

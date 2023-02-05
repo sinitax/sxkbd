@@ -44,7 +44,7 @@ stdio_log(int level, const char *fmtstr, ...)
 	va_list ap, cpy;
 
 	if (level == LOG_WARN) {
-		led_blip(HARD_RED);
+		led_start_blip(HARD_RED, 100);
 		va_copy(cpy, ap);
 		va_start(cpy, fmtstr);
 		vsnprintf(warnlog, sizeof(warnlog), fmtstr, cpy);
