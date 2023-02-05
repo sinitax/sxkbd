@@ -42,10 +42,12 @@ main(void)
 	start = board_millis();
 	while (true) {
 		tud_task();
-		cdc_task();
 		led_task();
 		split_task();
-		hid_task();
+		if (split_role == MASTER) {
+			cdc_task();
+			hid_task();
+		}
 
 		stop = board_millis();
 		DEBUG("Main loop: %i ms", stop - start);
@@ -141,8 +143,6 @@ process_cmd(char *cmd)
 			loglevel = LOG_INFO;
 		} else if (!strcmp(arg, "warn")) {
 			loglevel = LOG_WARN;
-		} else if (!strcmp(arg, "err")) {
-			loglevel = LOG_ERR;
 		} else {
 			printf("Invalid log level\n");
 		}

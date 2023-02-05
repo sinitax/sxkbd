@@ -148,7 +148,7 @@ active_layers_push(uint layer, uint key)
 	active_layers[active_layers_top].key = key;
 
 	for (i = 0; i <= active_layers_top; i++) {
-		INFO("%i. ACTIVE %u %u", i,
+		DEBUG("%i. ACTIVE %u %u", i,
 			active_layers[i].layer, active_layers[i].key);
 	}
 }

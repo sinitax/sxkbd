@@ -11,4 +11,6 @@
 void split_init(void);
 void split_task(void);
 
+void split_warn_master(const char *msg);
+
 extern int split_role;

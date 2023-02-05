@@ -1,4 +1,6 @@
 #include "util.h"
+
+#include "split.h"
 #include "board.h"
 #include "class/cdc/cdc_device.h"
 #include "led.h"
@@ -11,7 +13,7 @@
 
 #include <stdio.h>
 
-char warnlog[512];
+char warnlog[256];
 int loglevel = LOG_INFO;
 
 static void
@@ -49,6 +51,9 @@ stdio_log(int level, const char *fmtstr, ...)
 		va_start(cpy, fmtstr);
 		vsnprintf(warnlog, sizeof(warnlog), fmtstr, cpy);
 		va_end(cpy);
+
+		if (split_role == SLAVE)
+			split_warn_master(warnlog);
 	}
 
 	if (level > loglevel)

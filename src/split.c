@@ -36,7 +36,7 @@
 enum {
 	CMD_SCAN_KEYMAT_REQ = 0x80,
 	CMD_SCAN_KEYMAT_RESP,
-	CMD_STDIO_PUTS
+	CMD_SLAVE_WARN
 };
 
 static void uart_tx_sm_init(void);
@@ -49,7 +49,7 @@ static bool uart_await_tx(uint32_t timeout_ms);
 static uint8_t uart_rx_byte(void);
 static void uart_tx_byte(uint8_t c);
 
-static uint uart_recv(uint8_t *data, uint len);
+static uint uart_recv(uint8_t *data, uint len, bool nullterm);
 static uint uart_send(const uint8_t *data, uint len);
 
 static void handle_cmd(uint8_t cmd);
@@ -183,7 +183,7 @@ uart_tx_byte(uint8_t c)
 }
 
 uint
-uart_recv(uint8_t *data, uint len)
+uart_recv(uint8_t *data, uint len, bool nullterm)
 {
 	uint recv;
 
@@ -193,6 +193,8 @@ uart_recv(uint8_t *data, uint len)
 				break;
 		}
 		*data++ = uart_rx_byte();
+		if (nullterm && !*data)
+			break;
 	}
 
 	return recv;
@@ -217,13 +219,13 @@ uart_send(const uint8_t *data, uint len)
 void
 handle_cmd(uint8_t start)
 {
-	uint8_t buf[128];
+	static uint8_t msgbuf[128];
 	uint8_t cmd;
 
 	if (start != 0xaa)
 		return;
 
-	if (!uart_recv(&cmd, 1)) {
+	if (!uart_recv(&cmd, 1, false)) {
 		WARN("Got start byte without command");
 		return;
 	}
@@ -241,18 +243,18 @@ handle_cmd(uint8_t start)
 			WARN("Got SCAN_KEYMAT_RESP as slave");
 			break;
 		}
-		if (uart_recv((uint8_t *) &halfmat, 4) != 4)
+		if (uart_recv((uint8_t *) &halfmat, 4, false) != 4)
 			WARN("Incomplete matrix received");
 		scan_pending = false;
 		break;
-	case CMD_STDIO_PUTS:
+	case CMD_SLAVE_WARN:
 		if (split_role != MASTER) {
-			WARN("Got STDIO_PUTS as slave");
+			WARN("Got SLAVE_WARN as slave");
 			break;
 		}
-		memset(buf, 0, sizeof(buf));
-		uart_recv(buf, sizeof(buf)-1);
-		printf("SLAVE: %s\n", buf);
+		memset(msgbuf, 0, sizeof(msgbuf));
+		uart_recv(msgbuf, sizeof(msgbuf)-1, true);
+		WARN("SLAVE: %s\n", msgbuf);
 		break;
 	default:
 		WARN("Unknown uart cmd: %i", cmd);
@@ -338,4 +340,19 @@ split_task(void)
 			scan_pending = false;
 		}
 	}
+}
+
+void
+split_warn_master(const char *msg)
+{
+	uint32_t len;
+
+	if (!send_cmd(CMD_SLAVE_WARN)) {
+		WARN("UART send SLAVE_WARN failed");
+		return;
+	}
+
+	len = strlen(msg) + 1;
+	if (uart_send((const uint8_t *) msg, len) != len)
+		WARN("UART send warning failed");
 }
