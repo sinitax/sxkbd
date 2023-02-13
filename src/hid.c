@@ -296,8 +296,6 @@ process_keydown(uint32_t keysym, uint x, uint y)
 		add_keycode(TO_KC(keysym));
 	} else if (IS_KC(keysym) && IS_MOD_KC(TO_KC(keysym))) {
 		active_mods |= MOD_BIT(TO_KC(keysym));
-	} else if (IS_MOD(keysym)) {
-		active_mods |= parse_modifiers(keysym);
 	}
 }
 
@@ -367,14 +365,26 @@ bool
 update_keyboard_report(struct hid_keyboard_report *new,
 	struct hid_keyboard_report *old)
 {
-	return memcmp(new, old, sizeof(struct hid_keyboard_report));
+	return memcmp(new->codes, old->codes, HID_REPORT_CODES);
 }
 
 bool
 update_weak_mods(struct hid_keyboard_report *new,
 	struct hid_keyboard_report *old)
 {
-	return memcmp(new->codes, old->codes, HID_REPORT_CODES);
+	int i, k;
+
+	/* only need weak modes if new keycode added */
+	for (i = 0; i < new->cnt; i++) {
+		for (k = 0; k < old->cnt; k++) {
+			if (new->codes[i] != old->codes[k])
+				break;
+		}
+		if (k == old->cnt)
+			return true;
+	}
+
+	return false;
 }
 
 bool
