@@ -296,6 +296,8 @@ process_keydown(uint32_t keysym, uint x, uint y)
 		add_keycode(TO_KC(keysym));
 	} else if (IS_KC(keysym) && IS_MOD_KC(TO_KC(keysym))) {
 		active_mods |= MOD_BIT(TO_KC(keysym));
+	} else if (IS_SWITCH(keysym) && IS_MOD(keysym)) {
+		active_mods |= parse_modifiers(keysym);
 	}
 }
 
