@@ -367,7 +367,8 @@ bool
 update_keyboard_report(struct hid_keyboard_report *new,
 	struct hid_keyboard_report *old)
 {
-	return memcmp(new->codes, old->codes, HID_REPORT_CODES);
+	return new->mods != old->mods
+		|| memcmp(new->codes, old->codes, HID_REPORT_CODES);
 }
 
 bool
