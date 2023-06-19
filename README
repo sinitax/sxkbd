@@ -1,0 +1,12 @@
+sxkbd
+=====
+
+Firmware for RP2040-based corne split keyboard based on the
+Blok microcontrollers from Boardsource.
+
+setup
+-----
+
+To allow full-duplex communication between the halves, the tip pin
+of the TRS connector needs to be connected to GPIO0.
+
