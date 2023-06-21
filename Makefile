@@ -6,7 +6,7 @@ SPLIT_SIDE = $(shell echo "$(SIDE)" | tr a-z A-Z)
 PICO_SDK_PATH ?= lib/picosdk
 TINYUSB_PATH ?= lib/tinyusb
 
-PICO_SCK_FILES = $(PICO_SDK_PATH)/CMakeLists.txt
+PICO_SDK_FILES = $(PICO_SDK_PATH)/CMakeLists.txt
 TINYUSB_FILES = $(TINYUSB_PATH)/hw/bsp/family_support.cmake
 
 CMAKE_FLAGS = -DFAMILY=$(FAMILY) -DPICO_SDK_PATH=$(PICO_SDK_PATH)
