@@ -24,6 +24,23 @@
 
 void cdc_task(void);
 
+static void
+unassigned_init(void)
+{
+#ifdef BAD_GPIO_MITIGATION
+#pragma message("Enabled bad gpio mitigation to swap gpio pins 5 & 9")
+	const uint unassigned[] = { 8, 5, 23, 21 };
+#else
+	const uint unassigned[] = { 8, 9, 23, 21 };
+#endif
+	uint i;
+
+	for (i = 0; i < ARRLEN(unassigned); i++) {
+		gpio_init(unassigned[i]);
+		gpio_set_dir(unassigned[i], GPIO_IN);
+	}
+}
+
 int
 main(void)
 {
@@ -36,6 +53,7 @@ main(void)
 	keymat_init();
 	split_init();
 	hid_init();
+	unassigned_init();
 
 	led_start_blip(HARD_WHITE, 500);
 

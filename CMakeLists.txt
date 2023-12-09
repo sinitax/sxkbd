@@ -52,10 +52,7 @@ target_compile_options(pico_stdio INTERFACE
 	-Wno-unused-parameter
 )
 
-target_compile_options(${PROJECT} PRIVATE "-DSPLIT_SIDE=${SPLIT_SIDE}")
-if(DEFINED SPLIT_ROLE)
-target_compile_options(${PROJECT} PRIVATE "-DSPLIT_ROLE=${SPLIT_ROLE}")
-endif(DEFINED SPLIT_ROLE)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_C_EXTRA_FLAGS}")
 
 family_configure_target(${PROJECT})
 family_add_default_example_warnings(${PROJECT})

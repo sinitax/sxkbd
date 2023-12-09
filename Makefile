@@ -1,7 +1,6 @@
 FAMILY ?= rp2040
 
 SIDE ?= left
-SPLIT_SIDE = $(shell echo "$(SIDE)" | tr a-z A-Z)
 
 PICO_SDK_PATH ?= lib/picosdk
 TINYUSB_PATH ?= lib/tinyusb
@@ -10,10 +9,12 @@ PICO_SDK_FILES = $(PICO_SDK_PATH)/CMakeLists.txt
 TINYUSB_FILES = $(TINYUSB_PATH)/hw/bsp/family_support.cmake
 
 CMAKE_FLAGS = -DFAMILY=$(FAMILY) -DPICO_SDK_PATH=$(PICO_SDK_PATH)
-CMAKE_FLAGS += -DSPLIT_SIDE=$(SPLIT_SIDE) $(CMAKE_FLAGS_LEFT_EXTRA)
+CMAKE_C_FLAGS = -DSPLIT_SIDE=$(shell echo "$(SIDE)" | tr a-z A-Z)
 ifdef ROLE
-SPLIT_ROLE = $(shell echo "$(ROLE)" | tr a-z A-Z)
-CMAKE_FLAGS += -DSPLIT_ROLE=$(SPLIT_ROLE)
+CMAKE_C_FLAGS += -DSPLIT_ROLE=$(shell echo "$(ROLE)" | tr a-z A-Z)
+endif
+ifdef GPIO_MOD
+CMAKE_C_FLAGS += -DBAD_GPIO_MITIGATION=1
 endif
 
 all: build flash
@@ -22,7 +23,7 @@ clean:
 	rm -rf .build
 
 build: | $(PICO_SDK_FILES) $(TINYUSB_FILES) .build/$(SIDE)
-	cmake -B .build/$(SIDE) $(CMAKE_FLAGS)
+	cmake -B .build/$(SIDE) $(CMAKE_FLAGS) -DCMAKE_C_EXTRA_FLAGS="$(CMAKE_C_FLAGS)"
 	make -C .build/$(SIDE)
 
 flash:

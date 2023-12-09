@@ -9,7 +9,12 @@
 
 #include <string.h>
 
+#ifdef BAD_GPIO_MITIGATION
+static const uint keymat_row_pins[] = { 4, 9, 6, 7 };
+#else
 static const uint keymat_row_pins[] = { 4, 5, 6, 7 };
+#endif
+
 static const uint keymat_col_pins[] = { 29, 28, 27, 26, 22, 20 };
 static_assert(ARRLEN(keymat_row_pins) == KEY_ROWS_HALF);
 static_assert(ARRLEN(keymat_col_pins) == KEY_COLS);
@@ -25,12 +30,17 @@ keymat_init(void)
 	for (x = 0; x < KEY_COLS; x++) {
 		gpio_init(keymat_col_pins[x]);
 		gpio_set_dir(keymat_col_pins[x], GPIO_IN);
+		gpio_set_drive_strength(keymat_col_pins[x], GPIO_DRIVE_STRENGTH_2MA);
+		gpio_set_slew_rate(keymat_col_pins[x], GPIO_SLEW_RATE_FAST);
 		gpio_pull_up(keymat_col_pins[x]);
 	}
 
 	for (y = 0; y < KEY_ROWS_HALF; y++) {
 		gpio_init(keymat_row_pins[y]);
 		gpio_set_dir(keymat_row_pins[y], GPIO_OUT);
+		gpio_set_drive_strength(keymat_col_pins[x], GPIO_DRIVE_STRENGTH_2MA);
+		gpio_set_slew_rate(keymat_row_pins[y], GPIO_SLEW_RATE_FAST);
+		gpio_put(keymat_row_pins[y], 0);
 	}
 }
 
