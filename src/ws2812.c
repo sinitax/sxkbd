@@ -12,16 +12,14 @@ ws2812_init(struct ws2812 *pix, PIO pio, uint pin)
 {
 	pio_sm_config config;
 	uint offset;
-	uint sm;
 
 	pix->pio = pio;
 	pix->pin = pin;
 
-	sm = CLAIM_UNUSED_SM(pio);
-	pix->sm = sm;
+	pix->sm = claim_unused_sm(pio);
 
 	pio_gpio_init(pio, pin);
-	pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+	pio_sm_set_consecutive_pindirs(pio, pix->sm, pin, 1, true);
 
 	offset = pio_add_program(pix->pio, &ws2812_program);
 	config = ws2812_program_get_default_config(offset);
@@ -31,8 +29,8 @@ ws2812_init(struct ws2812 *pix, PIO pio, uint pin)
 	sm_config_set_clkdiv(&config,
 		(float) clock_get_hz(clk_sys) / (800000 * CYCLES_PER_BIT));
 
-	pio_sm_init(pio, sm, offset, &config);
-	pio_sm_set_enabled(pio, sm, true);
+	pio_sm_init(pio, pix->sm, offset, &config);
+	pio_sm_set_enabled(pio, pix->sm, true);
 
 	pix->init = true;
 }

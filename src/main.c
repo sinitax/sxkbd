@@ -50,7 +50,7 @@ main(void)
 		}
 
 		stop = board_millis();
-		DEBUG("Main loop: %i ms", stop - start);
+		DEBUG(LOG_TIMING, "Main loop: %i ms", stop - start);
 		start = stop;
 	}
 
@@ -134,17 +134,36 @@ process_cmd(char *cmd)
 		arg = cmd + strlen(cmd);
 	}
 
-	if (!strcmp(cmd, "log")) {
+	if (!strcmp(cmd, "log-level")) {
 		if (!strcmp(arg, "")) {
 			printf("Levels: debug, info, warn, err\n");
 		} else if (!strcmp(arg, "debug")) {
-			loglevel = LOG_DEBUG;
+			log_level_min = LOG_DEBUG;
 		} else if (!strcmp(arg, "info")) {
-			loglevel = LOG_INFO;
+			log_level_min = LOG_INFO;
 		} else if (!strcmp(arg, "warn")) {
-			loglevel = LOG_WARN;
+			log_level_min = LOG_WARN;
 		} else {
-			printf("Invalid log level\n");
+			printf("Invalid log level: %s\n", arg);
+		}
+	} else if (!strcmp(cmd, "log-groups")) {
+		log_group_mask = 0;
+		while (1) {
+			tok = strchr(arg, ',');
+			if (tok) *tok = '\0';
+			if (!strcmp(arg, "all")) {
+				log_group_mask |= LOG_ALL;
+			} else if (!strcmp(arg, "keymat")) {
+				log_group_mask |= LOG_KEYMAT;
+			} else if (!strcmp(arg, "timing")) {
+				log_group_mask |= LOG_TIMING;
+			} else if (strspn(arg, "\t ") == strlen(arg)) {
+				/* ignore */
+			} else {
+				printf("Invalid log facility: %s\n", arg);
+			}
+			if (!tok) break;
+			arg = tok + 1;
 		}
 	} else if (!strcmp(cmd, "warn")) {
 		if (*warnlog) {

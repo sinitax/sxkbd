@@ -14,7 +14,8 @@
 #include <stdio.h>
 
 char warnlog[256];
-int loglevel = LOG_INFO;
+int log_level_min = LOG_INFO;
+int log_group_mask = LOG_ALL;
 
 static void
 __attribute__((format(printf, 1, 0)))
@@ -40,10 +41,16 @@ panic_task(const char *fmtstr, va_list ap, uint32_t sleep_ms)
 }
 
 void
-__attribute__ ((format (printf, 2, 3)))
-stdio_log(int level, const char *fmtstr, ...)
+__attribute__ ((format (printf, 3, 4)))
+stdio_log(int facility, int level, const char *fmtstr, ...)
 {
 	va_list ap, cpy;
+
+	if (!(facility & log_group_mask))
+		return;
+
+	if (level < log_level_min)
+		return;
 
 	if (level == LOG_WARN) {
 		led_start_blip(HARD_RED, 100);
@@ -55,9 +62,6 @@ stdio_log(int level, const char *fmtstr, ...)
 		if (split_role == SLAVE)
 			split_warn_master(warnlog);
 	}
-
-	if (level > loglevel)
-		return;
 
 	if (!tud_cdc_connected())
 		return;

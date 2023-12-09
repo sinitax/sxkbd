@@ -139,7 +139,7 @@ active_layers_push(uint layer, uint key)
 	uint i;
 
 	if (active_layers_top == ARRLEN(active_layers) - 1) {
-		WARN("Active stack overflow");
+		WARN(LOG_KEYMAP, "Active stack overflow");
 		return;
 	}
 
@@ -148,7 +148,7 @@ active_layers_push(uint layer, uint key)
 	active_layers[active_layers_top].key = key;
 
 	for (i = 0; i <= active_layers_top; i++) {
-		DEBUG("%i. ACTIVE %u %u", i,
+		DEBUG(LOG_KEYMAP, "%i. ACTIVE %u %u", i,
 			active_layers[i].layer, active_layers[i].key);
 	}
 }
@@ -177,7 +177,7 @@ void
 macro_held_push(uint32_t keysym)
 {
 	if (macro_held_cnt == MACRO_HOLD_MAX) {
-		WARN("Macro held keys overflow");
+		WARN(LOG_KEYMAP, "Macro held keys overflow");
 		return;
 	}
 
@@ -202,7 +202,7 @@ void
 add_keycode(uint8_t keycode)
 {
 	if (keyboard_report.cnt >= 6) {
-		WARN("HID report overflow");
+		WARN(LOG_HID, "HID report overflow");
 		return;
 	}
 
@@ -327,7 +327,7 @@ process_key(uint x, uint y, uint64_t now_us)
 {
 	if (keymat[y][x] != keymat_prev[y][x]) {
 		if (bounce_mat[y][x] > now_us - 50000) {
-			DEBUG("Bouncing prevented %i vs %i",
+			DEBUG(LOG_KEYMAT, "Bouncing prevented %i vs %i",
 				keymat[y][x], keymat_prev[y][x]);
 			keymat[y][x] = keymat_prev[y][x];
 		} else {
@@ -452,7 +452,7 @@ send_consumer_report(void)
 	sent = false;
 	if (memcmp(&consumer_report, &consumer_report_prev,
 			sizeof(consumer_report))) {
-		INFO("CONSUMER SEND");
+		INFO(LOG_HID, "CONSUMER SEND");
 		tud_hid_n_report(INST_HID_MISC, REPORT_ID_CONSUMER,
 			&consumer_report.code, 2);
 		memcpy(&consumer_report_prev, &consumer_report,

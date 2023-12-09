@@ -17,6 +17,8 @@ void keymat_scan(void);
 uint32_t keymat_encode_half(int side);
 void keymat_decode_half(int side, uint32_t);
 
+void keymat_debug(void);
+
 extern bool keymat_prev[KEY_ROWS][KEY_COLS];
 extern bool keymat[KEY_ROWS][KEY_COLS];
 

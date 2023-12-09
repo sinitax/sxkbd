@@ -5,6 +5,7 @@
 #include "pico/types.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
+#include "util.h"
 
 #include <string.h>
 
@@ -85,6 +86,24 @@ keymat_decode_half(int side, uint32_t mask)
 	for (y = 0; y < KEY_ROWS_HALF; y++) {
 		for (x = 0; x < KEY_COLS; x++) {
 			keymat_half[y][x] = (mask >> (y * KEY_COLS + x)) & 1;
+		}
+	}
+}
+
+void
+keymat_debug(void)
+{
+	uint x, y;
+
+	if (log_level_min > LOG_DEBUG)
+		return;
+
+	for (y = 0; y < KEY_ROWS; y++) {
+		for (x = 0; x < KEY_COLS; x++) {
+			if (!keymat_prev[y][x] && keymat[y][x])
+				DEBUG(LOG_KEYMAT, "Key pressed: %u %u", x, y);
+			else if (keymat_prev[y][x] && !keymat[y][x])
+				DEBUG(LOG_KEYMAT, "Key released: %u %u", x, y);
 		}
 	}
 }

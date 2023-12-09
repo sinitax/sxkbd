@@ -31,6 +31,8 @@
 #elif SPLIT_SIDE == RIGHT
 #define UART_TX_PIN 1
 #define UART_RX_PIN 0
+#else
+#error "SPLIT_SIDE not set"
 #endif
 
 enum {
@@ -72,7 +74,7 @@ uart_tx_sm_init(void)
 {
 	pio_sm_config config;
 
-	uart_tx_sm = CLAIM_UNUSED_SM(pio0);
+	uart_tx_sm = claim_unused_sm(pio0);
 	uart_tx_sm_offset = pio_add_program(pio0, &uart_tx_program);
 
 	config = uart_tx_program_get_default_config(uart_tx_sm_offset);
@@ -92,7 +94,7 @@ uart_rx_sm_init(void)
 {
 	pio_sm_config config;
 
-	uart_rx_sm = CLAIM_UNUSED_SM(pio0);
+	uart_rx_sm = claim_unused_sm(pio0);
 	uart_rx_sm_offset = pio_add_program(pio0, &uart_rx_program);
 
 	config = uart_rx_program_get_default_config(uart_rx_sm_offset);
@@ -226,38 +228,38 @@ handle_cmd(uint8_t start)
 		return;
 
 	if (!uart_recv(&cmd, 1, false)) {
-		WARN("Got start byte without command");
+		WARN(LOG_SPLIT, "Got start byte without command");
 		return;
 	}
 
 	switch (cmd) {
 	case CMD_SCAN_KEYMAT_REQ:
 		if (split_role != SLAVE) {
-			WARN("Got SCAN_KEYMAT_REQ as master");
+			WARN(LOG_SPLIT, "Got SCAN_KEYMAT_REQ as master");
 			break;
 		}
 		scan_pending = true;
 		break;
 	case CMD_SCAN_KEYMAT_RESP:
 		if (split_role != MASTER) {
-			WARN("Got SCAN_KEYMAT_RESP as slave");
+			WARN(LOG_SPLIT, "Got SCAN_KEYMAT_RESP as slave");
 			break;
 		}
 		if (uart_recv((uint8_t *) &halfmat, 4, false) != 4)
-			WARN("Incomplete matrix received");
+			WARN(LOG_SPLIT, "Incomplete matrix received");
 		scan_pending = false;
 		break;
 	case CMD_SLAVE_WARN:
 		if (split_role != MASTER) {
-			WARN("Got SLAVE_WARN as slave");
+			WARN(LOG_SPLIT, "Got SLAVE_WARN as slave");
 			break;
 		}
 		memset(msgbuf, 0, sizeof(msgbuf));
 		uart_recv(msgbuf, sizeof(msgbuf)-1, true);
-		WARN("SLAVE: %s\n", msgbuf);
+		WARN(LOG_SPLIT, "SLAVE: %s\n", msgbuf);
 		break;
 	default:
-		WARN("Unknown uart cmd: %i", cmd);
+		WARN(LOG_SPLIT, "Unknown uart cmd: %i", cmd);
 		break;
 	}
 }
@@ -277,7 +279,7 @@ void
 irq_rx(void)
 {
 	if (pio_interrupt_get(pio0, 0)) {
-		DEBUG("UART RX ERR");
+		DEBUG(LOG_SPLIT, "UART RX ERR");
 		pio_interrupt_clear(pio0, 0);
 	}
 }
@@ -301,7 +303,7 @@ split_task(void)
 	if (split_role == MASTER) {
 		scan_pending = true;
 		if (!send_cmd(CMD_SCAN_KEYMAT_REQ)) {
-			WARN("UART send SCAN_KEYMAT_REQ failed");
+			WARN(LOG_SPLIT, "UART send SCAN_KEYMAT_REQ failed");
 			return;
 		}
 		keymat_next();
@@ -313,13 +315,16 @@ split_task(void)
 			tud_task();
 		}
 		if (scan_pending) {
-			WARN("Slave matrix scan timeout (%u)",
+			WARN(LOG_SPLIT | LOG_TIMING,
+				"Slave matrix scan timeout (%u)",
 				board_millis() - start_ms);
 		} else {
-			DEBUG("Slave matrix scan success (%u)",
+			DEBUG(LOG_SPLIT | LOG_TIMING,
+				"Slave matrix scan success (%u)",
 				board_millis() - start_ms);
 			keymat_decode_half(SPLIT_OPP(SPLIT_SIDE), halfmat);
 		}
+		keymat_debug();
 		scan_pending = false;
 	} else {
 		start_ms = board_millis();
@@ -330,9 +335,10 @@ split_task(void)
 		}
 		if (scan_pending) {
 			keymat_scan();
-			DEBUG("Sending SCAN_KEYMAT_RESP");
+			DEBUG(LOG_SPLIT, "Sending SCAN_KEYMAT_RESP");
 			if (!send_cmd(CMD_SCAN_KEYMAT_RESP)) {
-				WARN("UART send SCAN_KEYMAT_RESP failed");
+				WARN(LOG_SPLIT,
+					"UART send SCAN_KEYMAT_RESP failed");
 				return;
 			}
 			halfmat = keymat_encode_half(SPLIT_SIDE);
@@ -348,11 +354,11 @@ split_warn_master(const char *msg)
 	uint32_t len;
 
 	if (!send_cmd(CMD_SLAVE_WARN)) {
-		WARN("UART send SLAVE_WARN failed");
+		WARN(LOG_SPLIT, "UART send SLAVE_WARN failed");
 		return;
 	}
 
 	len = strlen(msg) + 1;
 	if (uart_send((const uint8_t *) msg, len) != len)
-		WARN("UART send warning failed");
+		WARN(LOG_SPLIT, "UART send warning failed");
 }
