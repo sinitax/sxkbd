@@ -1,6 +1,7 @@
 [submodule "lib/tinyusb"]
 	path = lib/tinyusb
 	url = https://github.com/hathach/tinyusb.git
+	shallow = true
 [submodule "lib/picosdk"]
 	path = lib/picosdk
 	url = https://github.com/raspberrypi/pico-sdk.git

@@ -114,7 +114,7 @@
 )
 
 #define LAYER_META_DE KEYMAP(                                       \
-	_______ , SX(KVM1), SX(KVM2), _______ , _______ , _______ , \
+	_______ , SX(KVM1), SX(KVM2), SX(QMSW), _______ , _______ , \
 	_______ , _______ , _______ , _______ , _______ , _______ , \
 	KC_F1   , KC_F2   , KC_F3   , KC_F4   , KC_F5   , KC_F6   , \
 	                              RB(BASE), _______ , RB(GAME), \
@@ -178,6 +178,7 @@ enum {
 enum {
 	KVM1,
 	KVM2,
+	QMSW,
 	QUSW,
 	TTY1,
 	TTY2,
@@ -217,6 +218,10 @@ static const uint32_t macro_kvm2[] = {
 	KC_LEFT_CTRL, KC_LEFT_CTRL, KC_2
 };
 
+static const uint32_t macro_qemu_switch[] = {
+	HOLD(KC_LEFT_CTRL), KC_RIGHT_CTRL
+};
+
 static const uint32_t ttysw_lut[] = {
 	KC_F1, KC_F2, KC_F3, KC_F4, KC_F5,
 	KC_F6, KC_F7, KC_F8, KC_F9, KC_F10
@@ -234,6 +239,9 @@ process_user_keypress(uint8_t sym, uint x, uint y)
 		break;
 	case KVM2:
 		hid_send_macro(macro_kvm2, ARRLEN(macro_kvm2));
+		break;
+	case QMSW:
+		hid_send_macro(macro_qemu_switch, ARRLEN(macro_qemu_switch));
 		break;
 	case QUSW:
 		if (keymat[7][3]) {
