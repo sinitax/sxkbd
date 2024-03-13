@@ -114,10 +114,10 @@
 )
 
 #define LAYER_META_DE KEYMAP(                                       \
-	_______ , SX(KVM1), SX(KVM2), SX(QMSW), _______ , _______ , \
+	_______ , SX(KVM1), SX(KVM2), SX(KVM3), SX(KVM4), _______ , \
 	_______ , _______ , _______ , _______ , _______ , _______ , \
 	KC_F1   , KC_F2   , KC_F3   , KC_F4   , KC_F5   , KC_F6   , \
-	                              RB(BASE), _______ , RB(GAME), \
+	                              RB(BASE), RB(GM1B), RB(GM2B), \
 	                                                            \
 	_______ , KS_VOLD , KS_VOLU , KS_MUTE , _______ , _______ , \
 	_______ , KS_MPRV , KS_MNXT , KS_MPLY , _______ , _______ , \
@@ -137,9 +137,9 @@
 	XXXXXXX , XXXXXXX , XXXXXXX                                 \
 )
 
-#define LAYER_GAME_DE KEYMAP(                                       \
+#define LAYER_GM1B_DE KEYMAP(                                       \
 	KC_ESC  , DE_Q    , DE_W    , DE_E    , DE_R    , DE_T    , \
-	SW(GNUM), DE_A    , DE_S    , DE_D    , DE_F    , DE_G    , \
+	SW(GM1N), DE_A    , DE_S    , DE_D    , DE_F    , DE_G    , \
 	KC_LCTL , DE_Z    , DE_X    , DE_C    , DE_V    , DE_B    , \
 	                              KC_LSFT , KC_LALT , KC_SPC  , \
 	                                                            \
@@ -149,11 +149,47 @@
 	XXXXXXX , XXXXXXX , XXXXXXX                                 \
 )
 
-#define LAYER_GNUM_DE KEYMAP(                                       \
+#define LAYER_GM1N_DE KEYMAP(                                       \
 	SW(META), KC_1    , KC_2    , KC_3    , KC_4    , KC_5    , \
 	XXXXXXX , KC_6    , KC_7    , KC_8    , KC_9    , KC_0    , \
 	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
 	                              XXXXXXX , KC_TAB  , XXXXXXX , \
+	                                                            \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX                                 \
+)
+
+#define LAYER_GM2B_DE KEYMAP(                                       \
+	KC_ESC  , DE_Q    , DE_W    , DE_E    , DE_R    , DE_T    , \
+	SW(GM2N), DE_A    , DE_S    , DE_D    , DE_F    , DE_G    , \
+	KC_LCTL , DE_Z    , DE_X    , DE_C    , DE_V    , DE_B    , \
+	                              SW(GM2E), KC_LALT , KC_SPC  , \
+	                                                            \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX                                 \
+)
+
+#define LAYER_GM2N_DE KEYMAP(                                       \
+	SW(META), KC_1    , DE_W    , KC_2    , KC_3    , DE_6    , \
+	XXXXXXX , DE_A    , DE_S    , DE_D    , KC_4    , DE_7    , \
+	XXXXXXX , KC_LSFT , DE_9    , DE_0    , KC_5    , DE_8 , \
+	                              XXXXXXX , KC_TAB  , XXXXXXX , \
+	                                                            \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
+	XXXXXXX , XXXXXXX , XXXXXXX                                 \
+)
+
+#define LAYER_GM2E_DE KEYMAP(                                       \
+	DE_J    , DE_L    , DE_W    , DE_Y    , DE_HASH , DE_SS   , \
+	DE_M    , DE_A    , DE_S    , DE_D    , DE_O    , DE_U    , \
+	DE_K    , DE_H    , DE_COMM , DE_DOT  , DE_MINS , DE_N    , \
+	                              XXXXXXX , XXXXXXX , XXXXXXX , \
 	                                                            \
 	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
 	XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , XXXXXXX , \
@@ -171,13 +207,18 @@ enum {
 	SPEC, /* specials */
 	META, /* functions */
 	MISC,
-	GAME, /* gaming base */
-	GNUM, /* gaming nums */
+	GM1B, /* gaming 1 base */
+	GM1N, /* gaming 1 nums */
+	GM2B, /* gaming 2 base */
+	GM2N, /* gaming 2 nums */
+	GM2E, /* gaming 2 extended */
 };
 
 enum {
 	KVM1,
 	KVM2,
+	KVM3,
+	KVM4,
 	QMSW,
 	QUSW,
 	TTY1,
@@ -201,8 +242,11 @@ const uint32_t keymap_layers_de[][KEY_ROWS][KEY_COLS] = {
 	[SPEC] = LAYER_SPEC_DE,
 	[META] = LAYER_META_DE,
 	[MISC] = LAYER_MISC_DE,
-	[GAME] = LAYER_GAME_DE,
-	[GNUM] = LAYER_GNUM_DE
+	[GM1B] = LAYER_GM1B_DE,
+	[GM1N] = LAYER_GM1N_DE,
+	[GM2B] = LAYER_GM2B_DE,
+	[GM2N] = LAYER_GM2N_DE,
+	[GM2E] = LAYER_GM2E_DE,
 
 };
 const uint32_t keymap_layers_de_count = ARRLEN(keymap_layers_de);
@@ -216,6 +260,14 @@ static const uint32_t macro_kvm1[] = {
 
 static const uint32_t macro_kvm2[] = {
 	KC_LEFT_CTRL, KC_LEFT_CTRL, KC_2
+};
+
+static const uint32_t macro_kvm3[] = {
+	KC_HOME
+};
+
+static const uint32_t macro_kvm4[] = {
+	HOLD(KC_LEFT_SHIFT), KC_HOME
 };
 
 static const uint32_t macro_qemu_switch[] = {
@@ -239,6 +291,12 @@ process_user_keypress(uint8_t sym, uint x, uint y)
 		break;
 	case KVM2:
 		hid_send_macro(macro_kvm2, ARRLEN(macro_kvm2));
+		break;
+	case KVM3:
+		hid_send_macro(macro_kvm3, ARRLEN(macro_kvm3));
+		break;
+	case KVM4:
+		hid_send_macro(macro_kvm4, ARRLEN(macro_kvm4));
 		break;
 	case QMSW:
 		hid_send_macro(macro_qemu_switch, ARRLEN(macro_qemu_switch));
