@@ -114,7 +114,7 @@
 )
 
 #define LAYER_META_DE KEYMAP(                                       \
-	_______ , SX(KVM1), SX(KVM2), SX(KVM3), SX(KVM4), _______ , \
+	_______ , SX(KVM1), SX(KVM2), SX(KVM3), SX(KVM4), SX(QMSW), \
 	_______ , _______ , _______ , _______ , _______ , _______ , \
 	KC_F1   , KC_F2   , KC_F3   , KC_F4   , KC_F5   , KC_F6   , \
 	                              RB(BASE), RB(GM1B), RB(GM2B), \
