@@ -23,7 +23,7 @@
 #include <stdint.h>
 
 #define UART_TIMEOUT 5
-#define UART_BAUD 115200
+#define UART_BAUD 9600
 
 #if SPLIT_SIDE == LEFT
 #define UART_TX_PIN 0
@@ -118,7 +118,7 @@ uart_full_init(void)
 
 	pio_gpio_init(pio0, UART_TX_PIN);
 	gpio_set_slew_rate(UART_TX_PIN, GPIO_SLEW_RATE_FAST);
-	gpio_set_drive_strength(UART_TX_PIN, GPIO_DRIVE_STRENGTH_12MA);
+	gpio_set_drive_strength(UART_TX_PIN, GPIO_DRIVE_STRENGTH_4MA);
 	pio_sm_set_pins_with_mask(pio0, uart_tx_sm, 1U, 1U << UART_TX_PIN);
 	pio_sm_set_consecutive_pindirs(pio0, uart_tx_sm, UART_TX_PIN, 1, true);
 
@@ -309,7 +309,7 @@ split_task(void)
 		keymat_next();
 		keymat_scan(); /* scan our side in parallel */
 		start_ms = board_millis();
-		while (scan_pending && board_millis() < start_ms + 3) {
+		while (scan_pending && board_millis() < start_ms + UART_TIMEOUT) {
 			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
 				handle_cmd(uart_rx_byte());
 			tud_task();
