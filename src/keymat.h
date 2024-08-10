@@ -9,13 +9,12 @@
 #define KEY_COLS 6
 #define KEY_COUNT (KEY_ROWS * KEY_COLS)
 
-#define KEYMAT_HALF(side) ((side) == LEFT ? &keymat[0] : &keymat[KEY_ROWS_HALF])
+#define KEYMAT_HALF(keymat, side) ((side) == LEFT ? &(keymat)[0] : &(keymat)[KEY_ROWS_HALF])
 
 void keymat_init(void);
-void keymat_next(void);
-void keymat_scan(void);
+bool keymat_scan(void);
 uint32_t keymat_encode_half(int side);
-void keymat_decode_half(int side, uint32_t);
+void keymat_decode_half(int side, uint32_t mask);
 
 void keymat_debug(void);
 

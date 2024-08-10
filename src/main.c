@@ -186,6 +186,7 @@ process_cmd(char *cmd)
 	} else if (!strcmp(cmd, "warn")) {
 		if (*warnlog) {
 			printf("Warning: %s\n", warnlog);
+			*warnlog = '\0';
 		} else {
 			printf("No warnings logged\n");
 		}

@@ -4,26 +4,22 @@
 #include "uart_rx.pio.h"
 #include "uart_tx.pio.h"
 
-#include "hardware/regs/io_bank0.h"
-#include "hardware/structs/padsbank0.h"
+#include "device/usbd.h"
 #include "hardware/pio.h"
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
-#include "hardware/address_mapped.h"
 #include "hardware/regs/intctrl.h"
-#include "hardware/regs/pads_bank0.h"
-#include "hardware/uart.h"
-#include "hardware/timer.h"
 #include "hardware/clocks.h"
-#include "pico/time.h"
-#include "bsp/board.h"
-#include "class/cdc/cdc_device.h"
-#include "tusb.h"
 
 #include <stdint.h>
 
-#define UART_TIMEOUT 5
-#define UART_BAUD 9600
+#define UART_AWAIT_TIMEOUT_US 1000
+#define UART_RECV_TIMEOUT_US 200
+#define UART_SEND_TIMEOUT_US 200
+
+#define UART_BAUD 115200
+
+#define CMD_START 0x8a
 
 #if SPLIT_SIDE == LEFT
 #define UART_TX_PIN 0
@@ -41,23 +37,6 @@ enum {
 	CMD_SLAVE_WARN
 };
 
-static void uart_tx_sm_init(void);
-static void uart_rx_sm_init(void);
-static void uart_full_init(void);
-
-static bool uart_await_rx(uint32_t timeout_ms);
-static bool uart_await_tx(uint32_t timeout_ms);
-
-static uint8_t uart_rx_byte(void);
-static void uart_tx_byte(uint8_t c);
-
-static uint uart_recv(uint8_t *data, uint len, bool nullterm);
-static uint uart_send(const uint8_t *data, uint len);
-
-static void handle_cmd(uint8_t cmd);
-static bool send_cmd(uint8_t cmd);
-static void irq_rx(void);
-
 static uint uart_tx_sm;
 static uint uart_tx_sm_offset;
 
@@ -65,11 +44,19 @@ static uint uart_rx_sm;
 static uint uart_rx_sm_offset;
 
 static uint32_t halfmat;
-static bool scan_pending = false;
 
 int split_role;
 
-void
+static void
+irq_rx(void)
+{
+	if (pio_interrupt_get(pio0, 0)) {
+		DEBUG(LOG_SPLIT, "UART RX ERR");
+		pio_interrupt_clear(pio0, 0);
+	}
+}
+
+static void
 uart_tx_sm_init(void)
 {
 	pio_sm_config config;
@@ -89,7 +76,7 @@ uart_tx_sm_init(void)
 	pio_sm_set_enabled(pio0, uart_tx_sm, false);
 }
 
-void
+static void
 uart_rx_sm_init(void)
 {
 	pio_sm_config config;
@@ -109,7 +96,7 @@ uart_rx_sm_init(void)
 	pio_sm_set_enabled(pio0, uart_rx_sm, false);
 }
 
-void
+static void
 uart_full_init(void)
 {
 	pio_gpio_init(pio0, UART_RX_PIN);
@@ -139,149 +126,158 @@ uart_full_init(void)
 	pio_sm_set_enabled(pio0, uart_tx_sm, true);
 }
 
-bool
-uart_await_rx(uint32_t timeout_ms)
+static bool
+uart_await_rx(uint64_t timeout_us)
 {
-	uint32_t start_ms;
+	uint64_t start_us;
 	bool empty;
 
-	start_ms = board_millis();
+	if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
+		return true;
+
+	start_us = board_micros();
 	do {
-		empty = pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm);
-		if (!empty) break;
 		tud_task();
-	} while (board_millis() < start_ms + timeout_ms);
+		empty = pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm);
+	} while (empty && board_micros() < start_us + timeout_us);
 
 	return !empty;
 }
 
-bool
-uart_await_tx(uint32_t timeout_ms)
+static bool
+uart_await_tx(uint64_t timeout_us)
 {
-	uint32_t start_ms;
+	uint64_t start_us;
 	bool full;
 
-	start_ms = board_millis();
+	if (!pio_sm_is_tx_fifo_full(pio0, uart_tx_sm))
+		return true;
+
+	start_us = board_micros();
 	do {
-		full = pio_sm_is_tx_fifo_full(pio0, uart_tx_sm);
-		if (!full) break;
 		tud_task();
-	} while (board_millis() < start_ms + timeout_ms);
+		full = pio_sm_is_tx_fifo_full(pio0, uart_tx_sm);
+	} while (full && board_micros() < start_us + timeout_us);
 
 	return !full;
-	pio_sm_set_enabled(pio0, uart_tx_sm, true);
 }
 
-uint8_t
+static uint8_t
 uart_rx_byte(void)
 {
 	return *(uint8_t*)((uintptr_t)&pio0->rxf[uart_rx_sm] + 3);
 }
 
-void
+static void
 uart_tx_byte(uint8_t c)
 {
 	pio_sm_put(pio0, uart_tx_sm, c);
 }
 
-uint
-uart_recv(uint8_t *data, uint len, bool nullterm)
+static uint
+uart_recv(uint8_t *data, uint len)
 {
 	uint recv;
 
 	for (recv = 0; recv < len; recv++) {
-		if (pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm)) {
-			if (!uart_await_rx(UART_TIMEOUT))
-				break;
-		}
-		*data++ = uart_rx_byte();
-		if (nullterm && !*data)
+		if (!uart_await_rx(UART_RECV_TIMEOUT_US))
 			break;
+		*data++ = uart_rx_byte();
 	}
 
 	return recv;
 }
 
-uint
+static uint
+uart_recv_str(uint8_t *data, uint max)
+{
+	uint recv;
+
+	for (recv = 0; recv < max; recv++) {
+		if (!uart_await_rx(UART_RECV_TIMEOUT_US))
+			break;
+		*data++ = uart_rx_byte();
+		if (!*data) break;
+	}
+
+	return recv;
+}
+
+static uint
 uart_send(const uint8_t *data, uint len)
 {
 	uint sent;
 
 	for (sent = 0; sent < len; sent++) {
-		if (pio_sm_is_tx_fifo_full(pio0, uart_tx_sm)) {
-			if (!uart_await_tx(UART_TIMEOUT))
-				break;
-		}
+		if (!uart_await_tx(UART_SEND_TIMEOUT_US))
+			break;
 		uart_tx_byte(*data++);
 	}
 
 	return sent;
 }
 
-void
-handle_cmd(uint8_t start)
+static int
+handle_cmd(void)
 {
 	static uint8_t msgbuf[128];
-	uint8_t cmd;
+	uint8_t cmd, start;
+	uint len;
 
-	if (start != 0xaa)
-		return;
+	start = uart_rx_byte();
+	if (start != CMD_START) {
+		WARN(LOG_SPLIT, "Got bad start byte: %02u", start);
+		return -1;
+	}
 
-	if (!uart_recv(&cmd, 1, false)) {
+	if (!uart_recv(&cmd, 1)) {
 		WARN(LOG_SPLIT, "Got start byte without command");
-		return;
+		return -1;
 	}
 
 	switch (cmd) {
 	case CMD_SCAN_KEYMAT_REQ:
 		if (split_role != SLAVE) {
 			WARN(LOG_SPLIT, "Got SCAN_KEYMAT_REQ as master");
-			break;
+			return -1;
 		}
-		scan_pending = true;
 		break;
 	case CMD_SCAN_KEYMAT_RESP:
 		if (split_role != MASTER) {
 			WARN(LOG_SPLIT, "Got SCAN_KEYMAT_RESP as slave");
-			break;
+			return -1;
 		}
-		if (uart_recv((uint8_t *) &halfmat, 4, false) != 4)
+		if (uart_recv((uint8_t *) &halfmat, 4) != 4) {
 			WARN(LOG_SPLIT, "Incomplete matrix received");
-		scan_pending = false;
+			return -1;
+		}
 		break;
 	case CMD_SLAVE_WARN:
 		if (split_role != MASTER) {
 			WARN(LOG_SPLIT, "Got SLAVE_WARN as slave");
-			break;
+			return -1;
 		}
-		memset(msgbuf, 0, sizeof(msgbuf));
-		uart_recv(msgbuf, sizeof(msgbuf)-1, true);
+		len = uart_recv_str(msgbuf, sizeof(msgbuf)-1);
+		msgbuf[len] = '\0';
 		WARN(LOG_SPLIT, "SLAVE: %s\n", msgbuf);
 		break;
 	default:
 		WARN(LOG_SPLIT, "Unknown uart cmd: %i", cmd);
-		break;
+		return -1;
 	}
+
+	return cmd;
 }
 
-bool
+static bool
 send_cmd(uint8_t cmd)
 {
 	uint8_t buf[2];
 
-	buf[0] = 0xaa;
+	buf[0] = CMD_START;
 	buf[1] = cmd;
 
 	return uart_send(buf, 2) == 2;
-}
-
-void
-irq_rx(void)
-{
-	if (pio_interrupt_get(pio0, 0)) {
-		DEBUG(LOG_SPLIT, "UART RX ERR");
-		pio_interrupt_clear(pio0, 0);
-	}
 }
 
 void
@@ -295,56 +291,45 @@ split_init(void)
 #endif
 }
 
+static void
+split_task_master(void)
+{
+	int cmd;
+
+	keymat_scan();
+
+	if (uart_await_rx(UART_AWAIT_TIMEOUT_US)) {
+		if ((cmd = handle_cmd()) == CMD_SCAN_KEYMAT_RESP) {
+			keymat_decode_half(SPLIT_OPP(SPLIT_SIDE), halfmat);
+		} else {
+			WARN(LOG_SPLIT, "Got unexpected command %02x", cmd);
+		}
+	}
+
+	keymat_debug();
+}
+
+static void
+split_task_slave(void)
+{
+	if (keymat_scan()) {
+		DEBUG(LOG_SPLIT, "Sending SCAN_KEYMAT_RESP");
+		halfmat = keymat_encode_half(SPLIT_SIDE);
+		if (!send_cmd(CMD_SCAN_KEYMAT_RESP)
+				|| !uart_send((uint8_t *) &halfmat, 4)) {
+			WARN(LOG_SPLIT,
+				"UART send SCAN_KEYMAT_RESP failed");
+		}
+	}
+}
+
 void
 split_task(void)
 {
-	uint32_t start_ms;
-
 	if (split_role == MASTER) {
-		scan_pending = true;
-		if (!send_cmd(CMD_SCAN_KEYMAT_REQ)) {
-			WARN(LOG_SPLIT, "UART send SCAN_KEYMAT_REQ failed");
-			return;
-		}
-		keymat_next();
-		keymat_scan(); /* scan our side in parallel */
-		start_ms = board_millis();
-		while (scan_pending && board_millis() < start_ms + UART_TIMEOUT) {
-			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
-				handle_cmd(uart_rx_byte());
-			tud_task();
-		}
-		if (scan_pending) {
-			WARN(LOG_SPLIT | LOG_TIMING,
-				"Slave matrix scan timeout (%u)",
-				board_millis() - start_ms);
-		} else {
-			DEBUG(LOG_SPLIT | LOG_TIMING,
-				"Slave matrix scan success (%u)",
-				board_millis() - start_ms);
-			keymat_decode_half(SPLIT_OPP(SPLIT_SIDE), halfmat);
-		}
-		keymat_debug();
-		scan_pending = false;
+		split_task_master();
 	} else {
-		start_ms = board_millis();
-		while (!scan_pending && board_millis() < start_ms + 3) {
-			if (!pio_sm_is_rx_fifo_empty(pio0, uart_rx_sm))
-				handle_cmd(uart_rx_byte());
-			tud_task();
-		}
-		if (scan_pending) {
-			keymat_scan();
-			DEBUG(LOG_SPLIT, "Sending SCAN_KEYMAT_RESP");
-			if (!send_cmd(CMD_SCAN_KEYMAT_RESP)) {
-				WARN(LOG_SPLIT,
-					"UART send SCAN_KEYMAT_RESP failed");
-				return;
-			}
-			halfmat = keymat_encode_half(SPLIT_SIDE);
-			uart_send((uint8_t *) &halfmat, 4);
-			scan_pending = false;
-		}
+		split_task_slave();
 	}
 }
 

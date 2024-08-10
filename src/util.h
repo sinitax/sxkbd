@@ -3,6 +3,8 @@
 #include "ws2812.h"
 #include "led.h"
 
+#include "pico/time.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdarg.h>
@@ -47,6 +49,12 @@ claim_unused_sm(PIO pio)
 	int tmp = pio_claim_unused_sm(pio, false);
 	ASSERT(tmp >= 0);
 	return (uint) tmp;
+}
+
+static inline uint64_t
+board_micros(void)
+{
+	return to_us_since_boot(get_absolute_time());
 }
 
 extern char warnlog[];

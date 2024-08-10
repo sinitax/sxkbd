@@ -2,12 +2,16 @@
 
 #include "keymap.h"
 #include "split.h"
+#include "util.h"
+
+#include "bsp/board.h"
 #include "pico/types.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
-#include "util.h"
 
 #include <string.h>
+
+#define DEBOUNCE_MS 5
 
 #ifdef BAD_GPIO_MITIGATION
 static const uint keymat_row_pins[] = { 4, 9, 6, 7 };
@@ -21,6 +25,8 @@ static_assert(ARRLEN(keymat_col_pins) == KEY_COLS);
 
 bool keymat_prev[KEY_ROWS][KEY_COLS];
 bool keymat[KEY_ROWS][KEY_COLS];
+
+static uint32_t keymat_modt[KEY_ROWS_HALF][KEY_COLS];
 
 void
 keymat_init(void)
@@ -44,27 +50,37 @@ keymat_init(void)
 	}
 }
 
-void
-keymat_next(void)
-{
-	memcpy(keymat_prev, keymat, sizeof(keymat));
-}
-
-void
+bool
 keymat_scan(void)
 {
 	bool (*keymat_half)[KEY_COLS];
+	bool state, modified;
+	uint32_t now_ms;
 	uint x, y;
 
-	keymat_half = KEYMAT_HALF(SPLIT_SIDE);
+	now_ms = board_millis();
+	modified = false;
+
+	memcpy(keymat_prev, keymat, sizeof(keymat));
+	keymat_half = KEYMAT_HALF(keymat, SPLIT_SIDE);
 	for (y = 0; y < KEY_ROWS_HALF; y++) {
 		gpio_put(keymat_row_pins[y], 0);
 		busy_wait_us(5);
-		for (x = 0; x < KEY_COLS; x++)
-			keymat_half[y][x] = !gpio_get(keymat_col_pins[x]);
+		for (x = 0; x < KEY_COLS; x++) {
+			if (keymat_modt[y][x] > now_ms - DEBOUNCE_MS)
+				continue;
+			state = !gpio_get(keymat_col_pins[x]);
+			if (state != keymat_half[y][x]) {
+				modified = true;
+				keymat_half[y][x] = state;
+				keymat_modt[y][x] = now_ms;
+			}
+		}
 		gpio_put(keymat_row_pins[y], 1);
 		busy_wait_us(5);
 	}
+
+	return modified;
 }
 
 uint32_t
@@ -75,7 +91,7 @@ keymat_encode_half(int side)
 	uint x, y;
 
 	mask = 0;
-	keymat_half = KEYMAT_HALF(side);
+	keymat_half = KEYMAT_HALF(keymat, side);
 	for (y = 0; y < KEY_ROWS_HALF; y++) {
 		for (x = 0; x < KEY_COLS; x++) {
 			if (keymat_half[y][x])
@@ -92,7 +108,7 @@ keymat_decode_half(int side, uint32_t mask)
 	bool (*keymat_half)[KEY_COLS];
 	uint x, y;
 
-	keymat_half = KEYMAT_HALF(side);
+	keymat_half = KEYMAT_HALF(keymat, side);
 	for (y = 0; y < KEY_ROWS_HALF; y++) {
 		for (x = 0; x < KEY_COLS; x++) {
 			keymat_half[y][x] = (mask >> (y * KEY_COLS + x)) & 1;

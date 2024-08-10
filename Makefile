@@ -13,7 +13,7 @@ CMAKE_C_FLAGS = -DSPLIT_SIDE=$(shell echo "$(SIDE)" | tr a-z A-Z)
 ifdef ROLE
 CMAKE_C_FLAGS += -DSPLIT_ROLE=$(shell echo "$(ROLE)" | tr a-z A-Z)
 endif
-ifdef GPIO_MOD
+ifneq ($(GPIO_MOD),0)
 CMAKE_C_FLAGS += -DBAD_GPIO_MITIGATION=1
 endif
 

@@ -52,7 +52,7 @@ stdio_log(int facility, int level, const char *fmtstr, ...)
 	if (level < log_level_min)
 		return;
 
-	if (level == LOG_WARN) {
+	if (level == LOG_WARN && !*warnlog) {
 		led_start_blip(HARD_RED, 100);
 		va_copy(cpy, ap);
 		va_start(cpy, fmtstr);
