@@ -8,10 +8,7 @@
 
 #include "class/hid/hid.h"
 #include "keysym/consumer.h"
-#include "keysym/system.h"
 #include "hid/keyboard.h"
-#include "hid/consumer.h"
-#include "hid/system.h"
 #include "hardware/timer.h"
 #include "bsp/board.h"
 #include "pico/types.h"
@@ -78,8 +75,6 @@ static struct hid_gamepad_report gamepad_report = { 0 };
 
 static uint8_t active_weak_mods = 0;
 static uint8_t active_mods = 0;
-
-static uint64_t bounce_mat[KEY_ROWS][KEY_COLS] = { 0 };
 
 static bool seen_mat[KEY_ROWS][KEY_COLS] = { 0 };
 
@@ -325,16 +320,6 @@ process_keyup(uint32_t keysym, uint x, uint y)
 void
 process_key(uint x, uint y, uint64_t now_us)
 {
-	if (keymat[y][x] != keymat_prev[y][x]) {
-		if (bounce_mat[y][x] > now_us - 50000) {
-			DEBUG(LOG_KEYMAT, "Bouncing prevented %i vs %i",
-				keymat[y][x], keymat_prev[y][x]);
-			keymat[y][x] = keymat_prev[y][x];
-		} else {
-			bounce_mat[y][x] = now_us;
-		}
-	}
-
 	if (keymat[y][x] && !keymat_prev[y][x])
 		keysyms[y][x] = determine_keysym(x, y);
 

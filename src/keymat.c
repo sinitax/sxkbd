@@ -11,7 +11,7 @@
 
 #include <string.h>
 
-#define DEBOUNCE_MS 5
+#define DEBOUNCE_MS 50
 
 #ifdef BAD_GPIO_MITIGATION
 static const uint keymat_row_pins[] = { 4, 9, 6, 7 };
