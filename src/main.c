@@ -62,10 +62,9 @@ main(void)
 		tud_task();
 		led_task();
 		split_task();
-		if (split_role == MASTER) {
-			cdc_task();
+		cdc_task();
+		if (split_role == MASTER)
 			hid_task();
-		}
 
 		stop = board_millis();
 		DEBUG(LOG_TIMING, "Main loop: %i ms", stop - start);

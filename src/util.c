@@ -11,6 +11,7 @@
 #include "bsp/board.h"
 #include "tusb_config.h"
 
+#include <stdint.h>
 #include <stdio.h>
 
 char warnlog[256];
@@ -52,15 +53,18 @@ stdio_log(int facility, int level, const char *fmtstr, ...)
 	if (level < log_level_min)
 		return;
 
-	if (level == LOG_WARN && !*warnlog) {
-		led_start_blip(HARD_RED, 100);
-		va_copy(cpy, ap);
-		va_start(cpy, fmtstr);
-		vsnprintf(warnlog, sizeof(warnlog), fmtstr, cpy);
-		va_end(cpy);
+	if (level == LOG_WARN) {
+		led_start_blip(HARD_RED, 500);
 
-		if (split_role == SLAVE)
-			split_warn_master(warnlog);
+		if (!*warnlog) {
+			// only save first warning; should be most useful.
+			va_copy(cpy, ap);
+			va_start(cpy, fmtstr);
+			vsnprintf(warnlog, sizeof(warnlog), fmtstr, cpy);
+			va_end(cpy);
+			if (split_role == SLAVE && !(facility & LOG_SPLIT))
+				split_warn_master(warnlog);
+		}
 	}
 
 	if (!tud_cdc_connected())
@@ -90,4 +94,13 @@ blink_panic(uint32_t blink_ms, uint32_t rgb, const char *fmtstr, ...)
 		led_task();
 	}
 	va_end(ap);
+}
+
+void
+tud_sleep_ms(uint32_t millis)
+{
+	uint64_t start = board_millis();
+	do {
+		tud_task();
+	} while (start + millis < board_millis());
 }

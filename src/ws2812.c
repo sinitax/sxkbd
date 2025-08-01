@@ -21,7 +21,7 @@ ws2812_init(struct ws2812 *pix, PIO pio, uint pin)
 	pio_gpio_init(pio, pin);
 	pio_sm_set_consecutive_pindirs(pio, pix->sm, pin, 1, true);
 
-	offset = pio_add_program(pix->pio, &ws2812_program);
+	offset = (uint) pio_add_program(pix->pio, &ws2812_program);
 	config = ws2812_program_get_default_config(offset);
 	sm_config_set_sideset_pins(&config, pin);
 	sm_config_set_out_shift(&config, false, true, 24);

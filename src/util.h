@@ -29,19 +29,22 @@ enum {
 };
 
 enum {
-	LOG_NONE   = 0b000000,
-	LOG_MISC   = 0b000001,
-	LOG_KEYMAT = 0b000010,
-	LOG_KEYMAP = 0b000100,
-	LOG_HID    = 0b001000,
-	LOG_TIMING = 0b010000,
-	LOG_SPLIT  = 0b100000,
-	LOG_ALL    = 0b111111,
+	LOG_NONE   = 0b0000000,
+	LOG_MISC   = 0b0000001,
+	LOG_KEYMAT = 0b0000010,
+	LOG_KEYMAP = 0b0000100,
+	LOG_HID    = 0b0001000,
+	LOG_TIMING = 0b0010000,
+	LOG_SPLIT  = 0b0100000,
+	LOG_SLAVE  = 0b1000000,
+	LOG_ALL    = 0b1111111,
 };
 
 void stdio_log(int group, int level, const char *fmtstr, ...);
 
 void blink_panic(uint32_t blink_ms, uint32_t rgb, const char *fmtstr, ...);
+
+void tud_sleep_ms(uint32_t millis);
 
 static inline uint
 claim_unused_sm(PIO pio)
@@ -57,6 +60,6 @@ board_micros(void)
 	return to_us_since_boot(get_absolute_time());
 }
 
-extern char warnlog[];
+extern char warnlog[256];
 extern int log_level_min;
 extern int log_group_mask;

@@ -12,12 +12,14 @@
 #include "hardware/clocks.h"
 
 #include <stdint.h>
+#include <sys/types.h>
 
-#define UART_AWAIT_TIMEOUT_US 1000
-#define UART_RECV_TIMEOUT_US 200
-#define UART_SEND_TIMEOUT_US 200
+#define UART_BAUD 4800
 
-#define UART_BAUD 115200
+#define UART_BYTE_TX_US (10 * 1000000.L / (double)UART_BAUD)
+#define UART_AWAIT_TIMEOUT_US ((uint64_t) (1.5L * UART_BYTE_TX_US))
+#define UART_RECV_TIMEOUT_US ((uint64_t) (6 * UART_BYTE_TX_US))
+#define UART_SEND_TIMEOUT_US ((uint64_t) (6 * UART_BYTE_TX_US))
 
 #define CMD_START 0x8a
 
@@ -62,7 +64,7 @@ uart_tx_sm_init(void)
 	pio_sm_config config;
 
 	uart_tx_sm = claim_unused_sm(pio0);
-	uart_tx_sm_offset = pio_add_program(pio0, &uart_tx_program);
+	uart_tx_sm_offset = (uint) pio_add_program(pio0, &uart_tx_program);
 
 	config = uart_tx_program_get_default_config(uart_tx_sm_offset);
 	sm_config_set_out_shift(&config, true, false, 32);
@@ -82,7 +84,7 @@ uart_rx_sm_init(void)
 	pio_sm_config config;
 
 	uart_rx_sm = claim_unused_sm(pio0);
-	uart_rx_sm_offset = pio_add_program(pio0, &uart_rx_program);
+	uart_rx_sm_offset = (uint) pio_add_program(pio0, &uart_rx_program);
 
 	config = uart_rx_program_get_default_config(uart_rx_sm_offset);
 	sm_config_set_in_pins(&config, UART_RX_PIN);
@@ -247,8 +249,9 @@ handle_cmd(void)
 			WARN(LOG_SPLIT, "Got SCAN_KEYMAT_RESP as slave");
 			return -1;
 		}
-		if (uart_recv((uint8_t *) &halfmat, 4) != 4) {
-			WARN(LOG_SPLIT, "Incomplete matrix received");
+		len = uart_recv((uint8_t *) &halfmat, 4);
+		if (len != 4) {
+			WARN(LOG_SPLIT, "Incomplete matrix received %i/4", len);
 			return -1;
 		}
 		break;
@@ -259,7 +262,8 @@ handle_cmd(void)
 		}
 		len = uart_recv_str(msgbuf, sizeof(msgbuf)-1);
 		msgbuf[len] = '\0';
-		WARN(LOG_SPLIT, "SLAVE: %s\n", msgbuf);
+		WARN(LOG_SLAVE, "WARN (SLAVE): %s\n", msgbuf);
+		if (!*warnlog) strncpy(warnlog, (char *)msgbuf, sizeof(warnlog));
 		break;
 	default:
 		WARN(LOG_SPLIT, "Unknown uart cmd: %i", cmd);
